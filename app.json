@@ -1,25 +1,68 @@
 {
   "expo": {
-    "name": "coraline-nails-tmp",
-    "slug": "coraline-nails-tmp",
-    "version": "1.0.0",
+    "name": "Coraline Nails",
+    "slug": "coraline-nails",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "scheme": "coraline-nails",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.vltech.coralinenails",
+      "buildNumber": "3",
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "es",
+        "CFBundleLocalizations": [
+          "es",
+          "en"
+        ]
+      }
     },
     "android": {
+      "package": "com.vltech.coralinenails",
+      "versionCode": 5,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F4A99A",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
-      "predictiveBackGestureEnabled": false
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FDF0EF"
+      },
+      "predictiveBackGestureEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store"
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "34722009-46ee-439b-9320-a8d241b7317b"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "owner": "jevaldez",
+    "updates": {
+      "url": "https://u.expo.dev/34722009-46ee-439b-9320-a8d241b7317b",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     }
   }
 }

@@ -31,10 +31,20 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
+
+# MCP config (contiene service_role key)
+.mcp.json
 
 # typescript
 *.tsbuildinfo
+
+# Claude
+claude.md
+.claude/
+.agents/
 
 # generated native folders
 /ios
