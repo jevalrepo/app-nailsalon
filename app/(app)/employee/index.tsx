@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { Avatar } from '@/components/ui/Avatar';
 import type { Profile } from '@/types';
 
@@ -126,8 +127,8 @@ function EmptyState({ colors, accent, isAdmin }: { colors: any; accent: string; 
 
 export default function EmployeeListScreen() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
   const { data: employees, isLoading, error } = useEmployees();
 
   if (isLoading) {

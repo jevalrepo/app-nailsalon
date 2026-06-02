@@ -125,7 +125,7 @@ export function useSession() {
     const result = await withTimeout(
       supabase
         .from('organization_members')
-        .select('organization_id, role, organizations(id, name, slug, plan, is_active, created_at)')
+        .select('organization_id, role, organizations(id, name, slug, plan, is_active, created_at, logo_url)')
         .eq('user_id', userId)
         .eq('is_active', true),
       REMOTE_DATA_TIMEOUT_MS
@@ -147,20 +147,18 @@ export function useSession() {
       }
     }
 
-    setOrganizations(orgs);
+    setOrganizations(orgs, roleMap);
 
     // Auto-seleccionar si ya hay una guardada y sigue siendo válida
     const currentOrgId = useAuthStore.getState().activeOrganizationId;
     const currentOrgStillValid = currentOrgId && orgs.some((o) => o.id === currentOrgId);
 
     if (currentOrgStillValid) {
-      // Actualizar el rol por si cambió
       setActiveOrganization(currentOrgId!, roleMap[currentOrgId!]);
     } else if (orgs.length === 1) {
-      // Auto-selección: única org disponible
       setActiveOrganization(orgs[0].id, roleMap[orgs[0].id]);
     }
-    // Si hay múltiples y ninguna guardada → S4 redirigirá a org-select
+    // Si hay múltiples y ninguna guardada → index.tsx redirige a org-select
   }
 
   return { session, profile, isLoading };

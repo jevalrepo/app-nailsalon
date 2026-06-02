@@ -1,5 +1,5 @@
 import {
-  View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, Platform, Modal,
+  View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, Platform, Modal, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Redirect } from 'expo-router';
@@ -8,9 +8,11 @@ import { useState, useEffect } from 'react';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { usePreferencesStore } from '@/stores/usePreferencesStore';
 import { useBusinessConfig, useUpdateBusinessConfig } from '@/hooks/useBusinessConfig';
 import type { BusinessConfig } from '@/hooks/useBusinessConfig';
+import { useLogoUpload } from '@/hooks/useLogoUpload';
 
 const DAY_LABELS: { short: string; abbr: string }[] = [
   { short: 'Domingo',    abbr: 'Do' },
@@ -95,9 +97,11 @@ function Field({
 export default function AdminConfigScreen() {
   const { colors, accent } = useTheme();
   const { profile } = useAuthStore();
+  const { org, orgRole } = useActiveOrg();
   const { notificationLeadMinutes, setNotificationLeadMinutes } = usePreferencesStore();
   const { data: remoteConfig, isLoading } = useBusinessConfig();
   const updateMutation = useUpdateBusinessConfig();
+  const { pickAndUpload, removeLogo, isUploading } = useLogoUpload();
 
   const [form, setForm] = useState<Pick<BusinessConfig, 'open_time' | 'close_time' | 'work_days' | 'currency' | 'off_hours_surcharge' | 'off_hours_surcharge_type'>>({
     open_time: '09:00', close_time: '18:00',
@@ -108,7 +112,7 @@ export default function AdminConfigScreen() {
   // null = closed, 'open' = apertura visible, 'close' = cierre visible
   const [activePicker, setActivePicker] = useState<'open' | 'close' | null>(null);
 
-  if (profile?.role !== 'admin') return <Redirect href="/(app)/(tabs)" />;
+  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
@@ -219,6 +223,84 @@ export default function AdminConfigScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
+
+        {/* ── Logo del salón ── */}
+        <View style={{ marginTop: 8, marginBottom: 24 }}>
+          <SectionTitle label="Logo del salón" colors={colors} />
+          <View style={{
+            backgroundColor: colors.surfaceElevated, borderRadius: 20, padding: 20,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+            alignItems: 'center', gap: 16,
+          }}>
+            <View style={{
+              width: 100, height: 100, borderRadius: 24,
+              backgroundColor: colors.surface,
+              borderWidth: 2, borderColor: colors.border,
+              alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              {org?.logo_url ? (
+                <Image source={{ uri: org.logo_url }} style={{ width: 100, height: 100 }} resizeMode="cover" />
+              ) : (
+                <Ionicons name="sparkles" size={38} color={accent} />
+              )}
+              {isUploading && (
+                <View style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center' }}>
+              {org?.logo_url ? 'Logo actual del salón' : 'Sin logo — se mostrará un ícono genérico'}
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={async () => {
+                  const url = await pickAndUpload();
+                  if (url) Alert.alert('Listo', 'Logo actualizado correctamente.');
+                }}
+                disabled={isUploading}
+                style={({ pressed }) => ({
+                  flex: 1, height: 42, borderRadius: 12,
+                  backgroundColor: accent, alignItems: 'center', justifyContent: 'center',
+                  flexDirection: 'row', gap: 6,
+                  opacity: pressed || isUploading ? 0.7 : 1,
+                })}
+              >
+                <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>
+                  {org?.logo_url ? 'Cambiar' : 'Subir logo'}
+                </Text>
+              </Pressable>
+
+              {org?.logo_url && (
+                <Pressable
+                  onPress={() => {
+                    Alert.alert('Eliminar logo', '¿Quitar el logo del salón?', [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Eliminar', style: 'destructive', onPress: () => removeLogo() },
+                    ]);
+                  }}
+                  disabled={isUploading}
+                  style={({ pressed }) => ({
+                    height: 42, paddingHorizontal: 16, borderRadius: 12,
+                    borderWidth: 1.5, borderColor: '#FF453A',
+                    alignItems: 'center', justifyContent: 'center',
+                    opacity: pressed || isUploading ? 0.7 : 1,
+                  })}
+                >
+                  <Ionicons name="trash-outline" size={17} color="#FF453A" />
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </View>
 
         {/* ── Horario de atención ── */}
         <View style={{ marginTop: 8, marginBottom: 24 }}>

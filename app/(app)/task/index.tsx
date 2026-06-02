@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTasks, isOverdue, type TaskWithProfile } from '@/hooks/useTasks';
 import { useToggleTask, useDeleteTask } from '@/hooks/useTaskMutations';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 
 type FilterKey = 'all' | 'pending' | 'completed' | 'mine';
 
@@ -167,8 +168,9 @@ function TaskRow({
 
 export default function TasksScreen() {
   const { colors, accent } = useTheme();
-  const { profile, session } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { session } = useAuthStore();
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
   const { data: tasks = [], isLoading, isFetching, isError, error, refetch } = useTasks(activeFilter);

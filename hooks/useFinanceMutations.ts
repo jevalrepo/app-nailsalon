@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db/database';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { randomUUID } from 'expo-crypto';
 
 export interface TransactionInput {
@@ -20,6 +21,7 @@ export function useCreateTransaction() {
   const qc = useQueryClient();
   const { session } = useAuthStore();
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { enqueue } = useSyncQueue();
 
   return useMutation({
@@ -32,6 +34,7 @@ export function useCreateTransaction() {
       const row = {
         id,
         organization_id: orgId,
+        branch_id: branchId,
         type: input.type,
         amount: input.amount,
         description: input.description,
@@ -45,9 +48,9 @@ export function useCreateTransaction() {
       };
 
       await db.runAsync(
-        `INSERT INTO transactions (id, organization_id, type, amount, description, category, payment_method, date, appointment_id, employee_id, created_by, created_at, _synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-        [id, orgId, row.type, row.amount, row.description, row.category, row.payment_method,
+        `INSERT INTO transactions (id, organization_id, branch_id, type, amount, description, category, payment_method, date, appointment_id, employee_id, created_by, created_at, _synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        [id, orgId, branchId ?? null, row.type, row.amount, row.description, row.category, row.payment_method,
           row.date, row.appointment_id, row.employee_id, row.created_by, now]
       );
 

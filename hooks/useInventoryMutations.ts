@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '@/lib/db/database';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { randomUUID } from 'expo-crypto';
 
 interface InventoryPayload {
@@ -14,6 +15,7 @@ interface InventoryPayload {
 export function useCreateInventoryItem() {
   const qc = useQueryClient();
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { enqueue } = useSyncQueue();
 
   return useMutation({
@@ -24,12 +26,12 @@ export function useCreateInventoryItem() {
       const now = new Date().toISOString();
 
       await db.runAsync(
-        `INSERT INTO inventory (id, organization_id, name, quantity, unit, min_stock, created_at, _synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-        [id, orgId, payload.name, payload.quantity, payload.unit, payload.min_stock, now]
+        `INSERT INTO inventory (id, organization_id, branch_id, name, quantity, unit, min_stock, created_at, _synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        [id, orgId, branchId ?? null, payload.name, payload.quantity, payload.unit, payload.min_stock, now]
       );
 
-      enqueue({ table: 'inventory', operation: 'INSERT', rowId: id, payload: { id, organization_id: orgId, ...payload, created_at: now }, organization_id: orgId });
+      enqueue({ table: 'inventory', operation: 'INSERT', rowId: id, payload: { id, organization_id: orgId, branch_id: branchId, ...payload, created_at: now }, organization_id: orgId });
       return id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory', orgId] }),

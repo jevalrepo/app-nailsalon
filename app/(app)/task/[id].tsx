@@ -11,6 +11,7 @@ import { useTaskById, isOverdue } from '@/hooks/useTasks';
 import { useUpdateTask, useToggleTask, useDeleteTask } from '@/hooks/useTaskMutations';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import type { Profile } from '@/types';
@@ -80,8 +81,9 @@ function getDateOffset(days: number): string {
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, accent } = useTheme();
-  const { profile, session } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { session } = useAuthStore();
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const { data: task, isLoading } = useTaskById(id);
   const { data: employees = [] } = useEmployees();

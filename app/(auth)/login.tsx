@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Image,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
@@ -101,26 +100,28 @@ export default function LoginScreen() {
           >
             <View
               style={{
-                width: 190,
-                height: 190,
-                borderRadius: 44,
+                width: 90,
+                height: 90,
+                borderRadius: 28,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#FFFFFF',
-                shadowColor: '#000',
+                backgroundColor: primary,
+                shadowColor: primary,
                 shadowOffset: { width: 0, height: 10 },
-                shadowOpacity: isDark ? 0.28 : 0.12,
-                shadowRadius: 22,
+                shadowOpacity: 0.3,
+                shadowRadius: 20,
                 elevation: 8,
+                marginBottom: 20,
               }}
             >
-              <Image
-                source={require('../../assets/icon.png')}
-                resizeMode="cover"
-                accessibilityLabel="Logo de Coraline Nails"
-                style={{ width: 166, height: 166, borderRadius: 36 }}
-              />
+              <Ionicons name="sparkles" size={42} color="#fff" />
             </View>
+            <Text style={{ fontSize: 26, fontWeight: '800', color: fieldTextColor, letterSpacing: -0.5 }}>
+              Bienvenido
+            </Text>
+            <Text style={{ fontSize: 14, color: mutedColor, marginTop: 6 }}>
+              Inicia sesión para continuar
+            </Text>
           </View>
 
           <View style={{ paddingHorizontal: 24, paddingTop: 12 }}>

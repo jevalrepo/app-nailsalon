@@ -2,10 +2,14 @@ import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOnboardingStore } from '@/stores/useOnboardingStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { useTheme } from '@/hooks/useTheme';
 
 export default function Index() {
-  const { session, profile, isLoading } = useAuthStore();
+  const { session, isLoading, organizations, activeOrganizationId } = useAuthStore();
+  const { orgRole } = useActiveOrg();
+  const { branchId, branches } = useActiveBranch();
   const { hasSeenOnboarding, hasCompletedSetup } = useOnboardingStore();
   const { colors, accent } = useTheme();
 
@@ -19,12 +23,20 @@ export default function Index() {
 
   if (!session) return <Redirect href="/(auth)/login" />;
 
-  // Primera vez — mostrar onboarding
   if (!hasSeenOnboarding) return <Redirect href="/(auth)/onboarding" />;
 
-  // Admin que no ha completado el setup del negocio
-  if (profile?.role === 'admin' && !hasCompletedSetup) {
+  if ((orgRole === 'admin' || orgRole === 'owner') && !hasCompletedSetup) {
     return <Redirect href="/(auth)/setup" />;
+  }
+
+  // Usuario con múltiples salones y ninguno seleccionado → elegir
+  if (organizations.length > 1 && !activeOrganizationId) {
+    return <Redirect href="/(auth)/org-select" />;
+  }
+
+  // Múltiples sucursales y ninguna seleccionada → elegir sucursal
+  if (branches.length > 1 && !branchId) {
+    return <Redirect href="/(auth)/branch-select" />;
   }
 
   return <Redirect href="/(app)/(tabs)" />;

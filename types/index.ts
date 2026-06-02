@@ -12,6 +12,18 @@ export interface Organization {
   plan: string;
   is_active: boolean;
   created_at: string;
+  logo_url: string | null;
+}
+
+export interface Branch {
+  id: string;
+  organization_id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  created_at: string;
 }
 
 export interface OrganizationMember {

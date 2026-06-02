@@ -20,6 +20,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useOnboardingStore } from "@/stores/useOnboardingStore";
 import { useUpdateBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useActiveOrg } from "@/hooks/useActiveOrg";
+import { supabase } from "@/lib/supabase";
 
 const DAY_LABELS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
 
@@ -344,6 +346,8 @@ export default function SetupScreen() {
   const { colors, accent } = useTheme();
   const { setHasCompletedSetup } = useOnboardingStore();
   const { profile } = useAuthStore();
+  const { setBranches, setActiveBranch } = useAuthStore();
+  const { orgId } = useActiveOrg();
   const updateConfig = useUpdateBusinessConfig();
   const [step, setStep] = useState(0);
   const primary = accent || "#F4A99A";
@@ -396,6 +400,35 @@ export default function SetupScreen() {
         close_time: form.closeTime,
         work_days: form.workDays,
       });
+
+      // Crear sucursal principal si la org aún no tiene ninguna
+      if (orgId) {
+        const { data: existing } = await supabase
+          .from('branches')
+          .select('id')
+          .eq('organization_id', orgId)
+          .limit(1);
+
+        if (!existing || existing.length === 0) {
+          const { data: branch } = await supabase
+            .from('branches')
+            .insert({
+              organization_id: orgId,
+              name: form.businessName.trim() || 'Principal',
+              address: form.address.trim() || null,
+              phone: form.phone.trim() || null,
+              is_default: true,
+            })
+            .select()
+            .single();
+
+          if (branch) {
+            setBranches([branch]);
+            setActiveBranch(branch.id);
+          }
+        }
+      }
+
       setHasCompletedSetup(true);
       router.replace("/");
     } catch {

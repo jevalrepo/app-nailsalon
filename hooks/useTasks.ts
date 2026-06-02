@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getDb } from '@/lib/db/database';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import type { Task } from '@/types';
 
 export interface TaskWithProfile extends Task {
@@ -12,10 +13,11 @@ export interface TaskWithProfile extends Task {
 export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all') {
   const { session } = useAuthStore();
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
 
   return useQuery({
-    queryKey: ['tasks', orgId, filter],
-    enabled: !!orgId,
+    queryKey: ['tasks', orgId, branchId, filter],
+    enabled: !!orgId && !!branchId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
@@ -27,9 +29,9 @@ export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all
          FROM tasks t
          LEFT JOIN profiles p1 ON p1.id = t.assigned_to
          LEFT JOIN profiles p2 ON p2.id = t.created_by
-         WHERE t.organization_id = ? AND t._deleted = 0
+         WHERE t.organization_id = ? AND t.branch_id = ? AND t._deleted = 0
          ORDER BY t.is_completed ASC, t.due_date ASC NULLS LAST, t.created_at DESC`,
-        [orgId!]
+        [orgId!, branchId!]
       );
 
       let result: TaskWithProfile[] = rows.map((r) => ({
@@ -55,10 +57,11 @@ export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all
 
 export function useTaskById(id: string) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
 
   return useQuery({
-    queryKey: ['tasks', orgId, id],
-    enabled: !!orgId && !!id,
+    queryKey: ['tasks', orgId, branchId, id],
+    enabled: !!orgId && !!branchId && !!id,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
@@ -70,8 +73,8 @@ export function useTaskById(id: string) {
          FROM tasks t
          LEFT JOIN profiles p1 ON p1.id = t.assigned_to
          LEFT JOIN profiles p2 ON p2.id = t.created_by
-         WHERE t.id = ? AND t.organization_id = ? AND t._deleted = 0`,
-        [id, orgId!]
+         WHERE t.id = ? AND t.organization_id = ? AND t.branch_id = ? AND t._deleted = 0`,
+        [id, orgId!, branchId!]
       );
       if (!r) throw new Error('Task not found');
       return {

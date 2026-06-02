@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '@/lib/db/database';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 
 export interface AppointmentListItem {
   id: string;
@@ -32,10 +33,11 @@ function monthRange(year: number, month: number) {
 
 export function useAppointmentsByDate(date: string) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
 
   return useQuery({
-    queryKey: ['appointments', 'by-date', orgId, date],
-    enabled: !!orgId,
+    queryKey: ['appointments', 'by-date', orgId, branchId, date],
+    enabled: !!orgId && !!branchId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
@@ -53,11 +55,11 @@ export function useAppointmentsByDate(date: string) {
                 COALESCE(c.name, 'Sin cliente') AS client_name
          FROM appointments a
          LEFT JOIN clients c ON c.id = a.client_id
-         WHERE a.organization_id = ?
+         WHERE a.organization_id = ? AND a.branch_id = ?
            AND a.scheduled_at >= ? AND a.scheduled_at <= ?
            AND a._deleted = 0
          ORDER BY a.scheduled_at ASC`,
-        [orgId!, startTs, endTs]
+        [orgId!, branchId!, startTs, endTs]
       );
 
       if (appts.length === 0) return [];
@@ -105,10 +107,11 @@ export interface BookedSlot {
 
 export function useBookedSlots(date: string) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
 
   return useQuery({
-    queryKey: ['appointments', 'booked-slots', orgId, date],
-    enabled: !!orgId && !!date,
+    queryKey: ['appointments', 'booked-slots', orgId, branchId, date],
+    enabled: !!orgId && !!branchId && !!date,
     queryFn: async () => {
       const db = getDb();
 
@@ -118,12 +121,12 @@ export function useBookedSlots(date: string) {
          FROM appointments a
          JOIN appointment_services as_ ON as_.appointment_id = a.id
          JOIN services s ON s.id = as_.service_id
-         WHERE a.organization_id = ?
+         WHERE a.organization_id = ? AND a.branch_id = ?
            AND date(a.scheduled_at) = date(?)
            AND a.status NOT IN ('cancelled', 'no_show')
            AND a._deleted = 0
          GROUP BY a.id`,
-        [orgId!, date]
+        [orgId!, branchId!, date]
       );
 
       return rows.map((row) => ({
@@ -136,11 +139,12 @@ export function useBookedSlots(date: string) {
 
 export function useAppointmentCalendarMonth(year: number, month: number) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { start, end } = monthRange(year, month);
 
   return useQuery({
-    queryKey: ['appointments', 'calendar-month', orgId, year, month],
-    enabled: !!orgId,
+    queryKey: ['appointments', 'calendar-month', orgId, branchId, year, month],
+    enabled: !!orgId && !!branchId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
@@ -148,10 +152,10 @@ export function useAppointmentCalendarMonth(year: number, month: number) {
       const [apptRows, clientRows] = await Promise.all([
         db.getAllAsync<{ scheduled_at: string }>(
           `SELECT scheduled_at FROM appointments
-           WHERE organization_id = ?
+           WHERE organization_id = ? AND branch_id = ?
              AND scheduled_at >= ? AND scheduled_at <= ?
              AND _deleted = 0`,
-          [orgId!, `${start}T00:00:00`, `${end}T23:59:59`]
+          [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`]
         ),
         db.getAllAsync<{ birthdate: string }>(
           `SELECT birthdate FROM clients

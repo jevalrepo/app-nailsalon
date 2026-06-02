@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db/database';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { randomUUID } from 'expo-crypto';
 import type { SQLiteBindParams } from 'expo-sqlite';
 
@@ -16,6 +17,7 @@ export function useCreateTask() {
   const qc = useQueryClient();
   const { session } = useAuthStore();
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { enqueue } = useSyncQueue();
 
   return useMutation({
@@ -27,6 +29,7 @@ export function useCreateTask() {
       const row = {
         id,
         organization_id: orgId,
+        branch_id: branchId,
         title: input.title.trim(),
         is_completed: false,
         due_date: input.due_date ?? null,
@@ -36,9 +39,9 @@ export function useCreateTask() {
       };
 
       await db.runAsync(
-        `INSERT INTO tasks (id, organization_id, title, is_completed, due_date, assigned_to, created_by, created_at, _synced)
-         VALUES (?, ?, ?, 0, ?, ?, ?, ?, 0)`,
-        [id, orgId, row.title, row.due_date, row.assigned_to, row.created_by, now]
+        `INSERT INTO tasks (id, organization_id, branch_id, title, is_completed, due_date, assigned_to, created_by, created_at, _synced)
+         VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0)`,
+        [id, orgId, branchId ?? null, row.title, row.due_date, row.assigned_to, row.created_by, now]
       );
 
       enqueue({ table: 'tasks', operation: 'INSERT', rowId: id, payload: row, organization_id: orgId });

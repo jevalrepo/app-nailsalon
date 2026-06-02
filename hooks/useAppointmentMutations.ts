@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db/database';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { randomUUID } from 'expo-crypto';
 import type { SQLiteBindParams } from 'expo-sqlite';
 import type { AppointmentStatus } from '@/types';
@@ -31,6 +32,7 @@ export interface UpdateAppointmentInput {
 export function useCreateAppointment() {
   const qc = useQueryClient();
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { enqueue } = useSyncQueue();
 
   return useMutation({
@@ -43,6 +45,7 @@ export function useCreateAppointment() {
       const apptRow = {
         id: apptId,
         organization_id: orgId,
+        branch_id: branchId,
         client_id: input.client_id,
         employee_id: input.employee_id,
         scheduled_at: input.scheduled_at,
@@ -55,9 +58,9 @@ export function useCreateAppointment() {
 
       await db.withTransactionAsync(async () => {
         await db.runAsync(
-          `INSERT INTO appointments (id, organization_id, client_id, employee_id, scheduled_at, notes, status, payment_status, recurrence_type, created_at, _synced)
-           VALUES (?, ?, ?, ?, ?, ?, 'pending', 'pending', 'none', ?, 0)`,
-          [apptId, orgId, input.client_id, input.employee_id, input.scheduled_at, input.notes ?? null, now]
+          `INSERT INTO appointments (id, organization_id, branch_id, client_id, employee_id, scheduled_at, notes, status, payment_status, recurrence_type, created_at, _synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'none', ?, 0)`,
+          [apptId, orgId, branchId ?? null, input.client_id, input.employee_id, input.scheduled_at, input.notes ?? null, now]
         );
 
         for (const sid of input.service_ids) {

@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useServiceById } from '@/hooks/useServices';
 import { useUpdateService, useToggleServiceActive } from '@/hooks/useServiceMutations';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import type { ServiceCategory } from '@/types';
 
 const CATEGORIES: { value: ServiceCategory; label: string; icon: string }[] = [
@@ -42,8 +43,8 @@ export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, accent } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const { data: service, isLoading } = useServiceById(id);
   const updateService  = useUpdateService();

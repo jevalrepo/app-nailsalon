@@ -1,9 +1,11 @@
-import { View, Text, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Alert, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 import { useTheme } from '@/hooks/useTheme';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -97,7 +99,9 @@ function MenuSection({ label, children, colors }: { label: string; children: Rea
 
 export default function MoreScreen() {
   const { colors, accent } = useTheme();
-  const { profile, clear } = useAuthStore();
+  const { profile, clear, organizations } = useAuthStore();
+  const { org, orgRole } = useActiveOrg();
+  const { branch, isMulti: isMultiBranch } = useActiveBranch();
 
   async function handleLogout() {
     Alert.alert(
@@ -117,7 +121,7 @@ export default function MoreScreen() {
     );
   }
 
-  const roleLabel = profile?.role === 'admin' ? 'Administrador' : 'Empleada';
+  const roleLabel = orgRole === 'owner' ? 'Propietario' : orgRole === 'admin' ? 'Administrador' : 'Empleada';
 
   // Elimina el separador del último item en cada sección
   const noBottomBorder = { borderBottomWidth: 0 };
@@ -132,9 +136,34 @@ export default function MoreScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
       >
 
-        {/* ── Header ── */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 }}>
-          <Text style={{ fontSize: 26, fontWeight: '700', color: colors.text }}>Más</Text>
+        {/* ── Header con logo del salón ── */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{
+              width: 44, height: 44, borderRadius: 12,
+              backgroundColor: org?.logo_url ? 'transparent' : accent + '20',
+              borderWidth: org?.logo_url ? 0 : 1.5,
+              borderColor: accent + '40',
+              alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              {org?.logo_url ? (
+                <Image source={{ uri: org.logo_url }} style={{ width: 44, height: 44 }} resizeMode="cover" />
+              ) : (
+                <Ionicons name="sparkles" size={20} color={accent} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>
+                {org?.name ?? 'Mi salón'}
+              </Text>
+              {branch && (
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 1 }}>
+                  <Ionicons name="storefront-outline" size={11} color={colors.textSecondary} /> {branch.name}
+                </Text>
+              )}
+            </View>
+          </View>
         </View>
 
         {/* ── Perfil ── */}
@@ -169,7 +198,7 @@ export default function MoreScreen() {
               paddingHorizontal: 10, paddingVertical: 4,
             }}>
               <Text style={{ fontSize: 11, fontWeight: '600', color: accent }}>
-                {profile?.role === 'admin' ? 'Admin' : 'Staff'}
+                {orgRole === 'owner' ? 'Owner' : orgRole === 'admin' ? 'Admin' : 'Staff'}
               </Text>
             </View>
           </View>
@@ -188,7 +217,7 @@ export default function MoreScreen() {
           </MenuSection>
 
           {/* ── Admin ── */}
-          {profile?.role === 'admin' && (
+          {(orgRole === 'admin' || orgRole === 'owner') && (
             <MenuSection label="Administración" colors={colors}>
               <MenuRow icon="people-outline"           label="Empleadas"               onPress={() => router.push('/employee')} colors={colors} accent={accent} />
               <MenuRow icon="wallet-outline"           label="Finanzas"                onPress={() => router.push('/finance')}  colors={colors} accent={accent} />
@@ -200,9 +229,23 @@ export default function MoreScreen() {
 
           {/* ── Configuración ── */}
           <MenuSection label="Configuración" colors={colors}>
-            <View style={noBottomBorder}>
-              <MenuRow icon="settings-outline" label="Perfil y preferencias" onPress={() => router.push('/profile')} colors={colors} accent={accent} />
-            </View>
+            {(organizations.length > 1 || isMultiBranch) ? (
+              <>
+                <MenuRow icon="settings-outline" label="Perfil y preferencias" onPress={() => router.push('/profile')} colors={colors} accent={accent} />
+                {organizations.length > 1 && (
+                  <MenuRow icon="swap-horizontal-outline" label="Cambiar salón" onPress={() => router.push('/(auth)/org-select')} colors={colors} accent={accent} />
+                )}
+                <View style={noBottomBorder}>
+                  {isMultiBranch && (
+                    <MenuRow icon="storefront-outline" label="Cambiar sucursal" onPress={() => router.push('/(auth)/branch-select')} colors={colors} accent={accent} />
+                  )}
+                </View>
+              </>
+            ) : (
+              <View style={noBottomBorder}>
+                <MenuRow icon="settings-outline" label="Perfil y preferencias" onPress={() => router.push('/profile')} colors={colors} accent={accent} />
+              </View>
+            )}
           </MenuSection>
 
           {/* ── Sesión ── */}

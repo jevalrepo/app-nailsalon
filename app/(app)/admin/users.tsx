@@ -6,6 +6,7 @@ import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useChangeEmployeeRole } from '@/hooks/useEmployeeMutations';
 import { Avatar } from '@/components/ui/Avatar';
@@ -117,11 +118,11 @@ function StatChip({ label, value, colors, accent }: { label: string; value: numb
 
 export default function AdminUsersScreen() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
   const { data: employees, isLoading, error } = useEmployees();
   const changeRole = useChangeEmployeeRole();
+  const { orgRole } = useActiveOrg();
 
-  if (profile?.role !== 'admin') return <Redirect href="/(app)/(tabs)" />;
+  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
 
   function handleToggleRole(employee: Profile) {
     const newRole: UserRole = employee.role === 'admin' ? 'employee' : 'admin';

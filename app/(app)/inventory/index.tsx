@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useInventory, isLowStock } from '@/hooks/useInventory';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import type { InventoryItem } from '@/types';
 
 function StockBadge({ item }: { item: InventoryItem }) {
@@ -71,8 +72,8 @@ function InventoryRow({
 
 export default function InventoryScreen() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
   const [search, setSearch] = useState('');
 
   const { data: items = [], isLoading, isFetching, isError, error, refetch } = useInventory();

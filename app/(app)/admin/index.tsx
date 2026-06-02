@@ -4,6 +4,7 @@ import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useEmployees } from '@/hooks/useEmployees';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -105,10 +106,10 @@ function SectionCard({ children, colors }: { children: React.ReactNode; colors: 
 
 export default function AdminPanel() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
   const { data: employees } = useEmployees();
+  const { orgRole } = useActiveOrg();
 
-  if (profile?.role !== 'admin') return <Redirect href="/(app)/(tabs)" />;
+  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
 
   const totalUsers = employees?.length ?? 0;
   const totalAdmins = (employees ?? []).filter(e => e.role === 'admin').length;
@@ -178,6 +179,14 @@ export default function AdminPanel() {
               label="Roles y permisos"
               description={`${totalAdmins} admin · ${totalStaff} staff`}
               onPress={() => router.push('/admin/users')}
+              colors={colors}
+              accent={accent}
+            />
+            <AdminRow
+              icon="storefront-outline"
+              label="Sucursales"
+              description="Gestionar ubicaciones del negocio"
+              onPress={() => router.push('/admin/branches')}
               colors={colors}
               accent={accent}
               isLast

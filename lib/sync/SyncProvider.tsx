@@ -4,6 +4,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { processSyncQueue, pullFromSupabase, clearOrgCache } from '@/lib/sync/syncManager';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useBranches } from '@/hooks/useBranches';
 
 interface SyncContextValue {
   isConnected: boolean | null;
@@ -29,6 +30,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { isConnected } = useNetworkStatus();
   const { queue, isSyncing, lastSyncAt } = useSyncQueue();
   const { session, activeOrganizationId } = useAuthStore();
+  // Carga branches automáticamente cuando hay una org activa
+  useBranches();
   const queryClient = useQueryClient();
   const [isSyncingLocal, setIsSyncingLocal] = useState(false);
   const isSyncingRef = useRef(false);

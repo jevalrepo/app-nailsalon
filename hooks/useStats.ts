@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '@/lib/db/database';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 
 function toLocalDateString(date: Date) {
   const year = date.getFullYear();
@@ -53,10 +54,11 @@ const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 
 export function useMonthlyRevenue(months = 6) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
 
   return useQuery({
-    queryKey: ['stats', 'monthly-revenue', orgId, months],
-    enabled: !!orgId,
+    queryKey: ['stats', 'monthly-revenue', orgId, branchId, months],
+    enabled: !!orgId && !!branchId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
@@ -74,8 +76,8 @@ export function useMonthlyRevenue(months = 6) {
              COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
              COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
            FROM transactions
-           WHERE organization_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
-          [orgId!, start, end]
+           WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
+          [orgId!, branchId!, start, end]
         );
 
         const income = row?.income ?? 0;
@@ -90,11 +92,12 @@ export function useMonthlyRevenue(months = 6) {
 
 export function useTopServices(year: number, month: number, limit = 5) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { start, end } = monthRange(year, month);
 
   return useQuery({
-    queryKey: ['stats', 'top-services', orgId, year, month],
-    enabled: !!orgId,
+    queryKey: ['stats', 'top-services', orgId, branchId, year, month],
+    enabled: !!orgId && !!branchId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
@@ -110,14 +113,14 @@ export function useTopServices(year: number, month: number, limit = 5) {
          FROM appointment_services as_
          JOIN services s ON s.id = as_.service_id
          JOIN appointments a ON a.id = as_.appointment_id
-         WHERE a.organization_id = ?
+         WHERE a.organization_id = ? AND a.branch_id = ?
            AND a.scheduled_at >= ? AND a.scheduled_at <= ?
            AND a.status = 'completed'
            AND a._deleted = 0
          GROUP BY s.id
          ORDER BY count DESC
          LIMIT ?`,
-        [orgId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
+        [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
       );
       return rows as TopService[];
     },
@@ -126,11 +129,12 @@ export function useTopServices(year: number, month: number, limit = 5) {
 
 export function useTopClients(year: number, month: number, limit = 5) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { start, end } = monthRange(year, month);
 
   return useQuery({
-    queryKey: ['stats', 'top-clients', orgId, year, month],
-    enabled: !!orgId,
+    queryKey: ['stats', 'top-clients', orgId, branchId, year, month],
+    enabled: !!orgId && !!branchId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
@@ -146,14 +150,14 @@ export function useTopClients(year: number, month: number, limit = 5) {
          FROM appointments a
          JOIN clients c ON c.id = a.client_id
          LEFT JOIN appointment_services as_ ON as_.appointment_id = a.id
-         WHERE a.organization_id = ?
+         WHERE a.organization_id = ? AND a.branch_id = ?
            AND a.scheduled_at >= ? AND a.scheduled_at <= ?
            AND a.status = 'completed'
            AND a._deleted = 0
          GROUP BY c.id
          ORDER BY visits DESC
          LIMIT ?`,
-        [orgId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
+        [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
       );
       return rows as TopClient[];
     },
@@ -162,11 +166,12 @@ export function useTopClients(year: number, month: number, limit = 5) {
 
 export function useStatsSummary(year: number, month: number) {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { start, end } = monthRange(year, month);
 
   return useQuery({
-    queryKey: ['stats', 'summary', orgId, year, month],
-    enabled: !!orgId,
+    queryKey: ['stats', 'summary', orgId, branchId, year, month],
+    enabled: !!orgId && !!branchId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
@@ -178,18 +183,18 @@ export function useStatsSummary(year: number, month: number) {
         ),
         db.getAllAsync<{ status: string }>(
           `SELECT status FROM appointments
-           WHERE organization_id = ?
+           WHERE organization_id = ? AND branch_id = ?
              AND scheduled_at >= ? AND scheduled_at <= ?
              AND _deleted = 0`,
-          [orgId!, `${start}T00:00:00`, `${end}T23:59:59`]
+          [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`]
         ),
         db.getFirstAsync<{ income: number; expenses: number }>(
           `SELECT
              COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
              COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
            FROM transactions
-           WHERE organization_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
-          [orgId!, start, end]
+           WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
+          [orgId!, branchId!, start, end]
         ),
       ]);
 

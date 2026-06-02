@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useBusinessConfig, useUpdateBusinessConfig } from '@/hooks/useBusinessConfig';
 import type { BusinessConfig } from '@/hooks/useBusinessConfig';
 
@@ -59,9 +60,9 @@ function Field({
 
 export default function AdminBusinessScreen() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
   const { data: remoteConfig, isLoading } = useBusinessConfig();
   const updateMutation = useUpdateBusinessConfig();
+  const { orgRole } = useActiveOrg();
 
   const [form, setForm] = useState<Pick<BusinessConfig, 'business_name' | 'phone' | 'address' | 'instagram_handle'>>({
     business_name: 'Coraline Nails',
@@ -69,7 +70,7 @@ export default function AdminBusinessScreen() {
   });
   const [dirty, setDirty] = useState(false);
 
-  if (profile?.role !== 'admin') return <Redirect href="/(app)/(tabs)" />;
+  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {

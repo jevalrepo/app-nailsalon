@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useInventoryItem, isLowStock } from '@/hooks/useInventory';
 import { useUpdateInventoryItem, useDeleteInventoryItem } from '@/hooks/useInventoryMutations';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 
 const UNITS = [
   { value: 'piezas', icon: 'cube-outline', label: 'Piezas' },
@@ -42,8 +43,8 @@ function SectionLabel({ label, colors }: { label: string; colors: any }) {
 export default function InventoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const { data: item, isLoading } = useInventoryItem(id);
   const updateItem = useUpdateInventoryItem();

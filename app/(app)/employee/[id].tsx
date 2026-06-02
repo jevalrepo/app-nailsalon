@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useEmployeeById, useEmployeeStats } from '@/hooks/useEmployees';
 import { useUpdateEmployee, useChangeEmployeeRole } from '@/hooks/useEmployeeMutations';
 import { Avatar } from '@/components/ui/Avatar';
@@ -163,8 +164,8 @@ function RoleToggle({
 export default function EmployeeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const { data: employee, isLoading } = useEmployeeById(id);
   const { data: stats } = useEmployeeStats(id);

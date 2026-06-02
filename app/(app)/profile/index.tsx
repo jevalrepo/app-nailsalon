@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
@@ -581,8 +582,9 @@ function AvatarHero() {
 export default function ProfileScreen() {
   const { colors, accent } = useTheme();
   const { profile } = useAuthStore();
+  const { orgRole } = useActiveOrg();
 
-  const roleLabel = profile?.role === 'admin' ? 'Administrador' : 'Empleada';
+  const roleLabel = orgRole === 'owner' ? 'Propietario' : orgRole === 'admin' ? 'Administrador' : 'Empleada';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

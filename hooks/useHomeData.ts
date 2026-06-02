@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDb } from '@/lib/db/database';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
 
 function todayRange() {
   const now = new Date();
@@ -23,11 +24,12 @@ export interface TodayAppointment {
 
 export function useTodayAppointments() {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { start, end } = todayRange();
 
   return useQuery({
-    queryKey: ['appointments', 'today', orgId, start],
-    enabled: !!orgId,
+    queryKey: ['appointments', 'today', orgId, branchId, start],
+    enabled: !!orgId && !!branchId,
     queryFn: async () => {
       const db = getDb();
 
@@ -41,11 +43,11 @@ export function useTodayAppointments() {
                 COALESCE(c.name, 'Sin cliente') AS client_name
          FROM appointments a
          LEFT JOIN clients c ON c.id = a.client_id
-         WHERE a.organization_id = ?
+         WHERE a.organization_id = ? AND a.branch_id = ?
            AND a.scheduled_at >= ? AND a.scheduled_at <= ?
            AND a._deleted = 0
          ORDER BY a.scheduled_at ASC`,
-        [orgId!, start, end]
+        [orgId!, branchId!, start, end]
       );
 
       if (appts.length === 0) return [];
@@ -87,18 +89,19 @@ export function useTodayAppointments() {
 
 export function useTodayIncome() {
   const { orgId } = useActiveOrg();
+  const { branchId } = useActiveBranch();
   const { dateStr } = todayRange();
 
   return useQuery({
-    queryKey: ['transactions', 'today-income', orgId, dateStr],
-    enabled: !!orgId,
+    queryKey: ['transactions', 'today-income', orgId, branchId, dateStr],
+    enabled: !!orgId && !!branchId,
     queryFn: async () => {
       const db = getDb();
       const row = await db.getFirstAsync<{ total: number }>(
         `SELECT COALESCE(SUM(amount), 0) AS total
          FROM transactions
-         WHERE organization_id = ? AND type = 'income' AND date = ? AND _deleted = 0`,
-        [orgId!, dateStr]
+         WHERE organization_id = ? AND branch_id = ? AND type = 'income' AND date = ? AND _deleted = 0`,
+        [orgId!, branchId!, dateStr]
       );
       return row?.total ?? 0;
     },

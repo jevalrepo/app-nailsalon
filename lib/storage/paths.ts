@@ -46,6 +46,11 @@ export function clientPhotoPath(orgId: string, clientId: string, ext: ImageExt):
   return `${orgId}/${clientId}/${Date.now()}.${ext}`;
 }
 
+/** logos/{orgId}/logo.{ext}  */
+export function logoPath(orgId: string, ext: ImageExt): string {
+  return `${orgId}/logo.${ext}`;
+}
+
 // ── Path parser (signed URL → storage path) ──────────────────────────────────
 
 /**

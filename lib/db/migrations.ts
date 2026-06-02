@@ -174,6 +174,7 @@ export const MIGRATIONS: string[] = [
   `,
 
   // v2 — SaaS: columna organization_id en todas las tablas multi-tenant
+
   `
   ALTER TABLE profiles ADD COLUMN organization_id TEXT;
   ALTER TABLE clients ADD COLUMN organization_id TEXT;
@@ -194,5 +195,35 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_inventory_org ON inventory(organization_id);
   CREATE INDEX IF NOT EXISTS idx_designs_org ON designs(organization_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(organization_id);
+  `,
+
+  // v3 — Sucursales: tabla branches + branch_id en tablas operativas
+  `
+  CREATE TABLE IF NOT EXISTS branches (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    address TEXT,
+    phone TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+    _synced INTEGER NOT NULL DEFAULT 1,
+    _deleted INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(organization_id);
+
+  ALTER TABLE appointments  ADD COLUMN branch_id TEXT;
+  ALTER TABLE transactions  ADD COLUMN branch_id TEXT;
+  ALTER TABLE inventory     ADD COLUMN branch_id TEXT;
+  ALTER TABLE tasks         ADD COLUMN branch_id TEXT;
+  ALTER TABLE agenda_blocks ADD COLUMN branch_id TEXT;
+
+  CREATE INDEX IF NOT EXISTS idx_appointments_branch ON appointments(branch_id);
+  CREATE INDEX IF NOT EXISTS idx_transactions_branch ON transactions(branch_id);
+  CREATE INDEX IF NOT EXISTS idx_inventory_branch    ON inventory(branch_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_branch        ON tasks(branch_id);
   `,
 ];

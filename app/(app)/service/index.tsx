@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useAllServices } from '@/hooks/useServices';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import type { Service, ServiceCategory } from '@/types';
 
 const CATEGORY_LABELS: Record<ServiceCategory, string> = {
@@ -134,8 +135,8 @@ function SectionHeader({ title, icon, count, catColor, colors }: {
 
 export default function ServicesScreen() {
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const {
     data: services = [],

@@ -16,6 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useDesignById } from '@/hooks/useGallery';
 import { useDeleteDesign } from '@/hooks/useGalleryMutations';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useSyncContext } from '@/lib/sync/SyncProvider';
 
 function formatDate(iso: string) {
@@ -29,10 +30,10 @@ function formatDate(iso: string) {
 export default function DesignDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, accent } = useTheme();
-  const { profile } = useAuthStore();
   const { isConnected } = useSyncContext();
   const { width } = useWindowDimensions();
-  const isAdmin = profile?.role === 'admin';
+  const { orgRole } = useActiveOrg();
+  const isAdmin = orgRole === 'admin' || orgRole === 'owner';
 
   const { data: design, isLoading, isError, error } = useDesignById(id!);
   const deleteDesign = useDeleteDesign();
