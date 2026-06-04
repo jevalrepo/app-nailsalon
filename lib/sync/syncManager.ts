@@ -41,20 +41,20 @@ type SyncTable = (typeof SYNC_TABLES)[number];
 // Columnas que existen solo en SQLite local y deben excluirse al subir a Supabase
 const LOCAL_ONLY_COLUMNS = ['_synced', '_deleted'];
 
-// Columnas seleccionadas por tabla para el pull (excluyendo las locales)
+// Columnas seleccionadas por tabla para el pull (solo columnas que existen en Supabase)
 const TABLE_SELECT: Record<SyncTable, string> = {
-  branches: 'id,organization_id,name,address,phone,is_active,is_default,created_at',
-  profiles: 'id,full_name,role,phone,avatar_url,is_active,created_at',
-  clients: 'id,name,phone,email,birthdate,notes,no_show_count,created_by,created_at',
-  services: 'id,name,description,price,duration_min,category,is_active,applies_surcharge,created_at',
-  appointments: 'id,client_id,employee_id,branch_id,scheduled_at,status,payment_status,notes,recurrence_type,recurrence_end_date,parent_appointment_id,created_at',
+  branches:             'id,organization_id,name,address,phone,is_active,is_default,created_at',
+  profiles:             'id,organization_id,full_name,role,phone,avatar_url,is_active,created_at',
+  clients:              'id,organization_id,name,phone,email,birthdate,notes,no_show_count,created_by,created_at',
+  services:             'id,organization_id,name,description,price,duration_min,category,is_active,applies_surcharge,created_at',
+  appointments:         'id,organization_id,client_id,employee_id,branch_id,scheduled_at,status,payment_status,notes,recurrence_type,recurrence_end_date,parent_appointment_id,created_at',
   appointment_services: 'id,appointment_id,service_id,price_snapshot',
-  transactions: 'id,type,amount,description,category,payment_method,branch_id,appointment_id,employee_id,date,created_by,created_at',
-  inventory: 'id,name,quantity,unit,min_stock,branch_id,created_at',
-  designs: 'id,title,image_url,tags,uploaded_by,created_at',
-  tasks: 'id,title,is_completed,due_date,assigned_to,created_by,branch_id,created_at',
-  agenda_blocks: 'id,employee_id,starts_at,ends_at,reason,branch_id,created_at',
-  business_config: 'id,business_name,phone,address,instagram_handle,open_time,close_time,work_days,currency,off_hours_surcharge,off_hours_surcharge_type,updated_at',
+  transactions:         'id,organization_id,type,amount,description,category,payment_method,branch_id,appointment_id,employee_id,date,created_by,created_at',
+  inventory:            'id,organization_id,name,quantity,unit,min_stock,branch_id,created_at',
+  designs:              'id,organization_id,title,image_url,tags,uploaded_by,created_at',
+  tasks:                'id,organization_id,title,is_completed,due_date,assigned_to,created_by,branch_id,created_at',
+  agenda_blocks:        'id,organization_id,employee_id,starts_at,ends_at,reason,branch_id,created_at',
+  business_config:      'id,organization_id,business_name,phone,address,instagram_handle,open_time,close_time,work_days,currency,off_hours_surcharge,off_hours_surcharge_type,updated_at',
 };
 
 function stripLocalColumns(payload: Record<string, unknown>): Record<string, unknown> {
@@ -165,26 +165,10 @@ export async function pullFromSupabase(orgId?: string): Promise<void> {
 
   for (const table of SYNC_TABLES) {
     try {
-      // Obtener el updated_at más reciente en local para sync incremental
-      // Si hay orgId activo, solo comparar registros de esa org
-      const lastRow = orgId && ORG_SCOPED_TABLES.has(table)
-        ? await db.getFirstAsync<{ updated_at: string } | null>(
-            `SELECT updated_at FROM ${table} WHERE organization_id = ? AND updated_at IS NOT NULL ORDER BY updated_at DESC LIMIT 1`,
-            [orgId]
-          )
-        : await db.getFirstAsync<{ updated_at: string } | null>(
-            `SELECT updated_at FROM ${table} WHERE updated_at IS NOT NULL ORDER BY updated_at DESC LIMIT 1`
-          );
-
       let query = supabase.from(table).select(TABLE_SELECT[table]);
 
-      // Filtrar por organización activa en las tablas que lo soporten
       if (orgId && ORG_SCOPED_TABLES.has(table)) {
         query = query.eq('organization_id', orgId);
-      }
-
-      if (lastRow?.updated_at && table !== 'appointment_services') {
-        query = query.gt('updated_at', lastRow.updated_at);
       }
 
       const { data, error } = await query;

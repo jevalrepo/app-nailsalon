@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { getDb } from '@/lib/db/database';
 import { useSyncQueue } from '@/stores/useSyncQueue';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { pullFromSupabase } from '@/lib/sync/syncManager';
 import type { SQLiteBindParams } from 'expo-sqlite';
 import type { UserRole } from '@/types';
 
@@ -21,7 +22,7 @@ interface UpdateEmployeeInput {
   phone?: string;
 }
 
-// Creación de empleada es solo online — requiere auth.admin
+// Creación de empleada via Edge Function (requiere service_role del lado del servidor)
 export function useCreateEmployee() {
   const qc = useQueryClient();
   const { orgId } = useActiveOrg();
@@ -30,34 +31,19 @@ export function useCreateEmployee() {
     mutationFn: async ({ email, password, full_name, role, phone }: CreateEmployeeInput) => {
       if (!orgId) throw new Error('No hay organización activa');
 
-      const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name },
+      const { data, error } = await supabase.functions.invoke('create-employee', {
+        body: { email, password, full_name, role, phone: phone ?? null, organization_id: orgId },
       });
+
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      const userId = data.user?.id;
-      if (!userId) throw new Error('No se pudo crear el usuario');
+      // Traer el perfil nuevo a SQLite local inmediatamente
+      await pullFromSupabase(orgId);
 
-      // Crear perfil con organization_id
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({ id: userId, organization_id: orgId, full_name, role, phone: phone ?? null, avatar_url: null });
-
-      if (profileError) throw profileError;
-
-      // Agregar como miembro de la org
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({ organization_id: orgId, user_id: userId, role });
-
-      if (memberError) throw memberError;
-
-      return userId;
+      return data.id as string;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees', orgId] }),
+    onSuccess: () => qc.invalidateQueries({ refetchType: 'all' }),
   });
 }
 
@@ -87,6 +73,32 @@ export function useUpdateEmployee() {
       qc.invalidateQueries({ queryKey: ['employees', orgId] });
       qc.invalidateQueries({ queryKey: ['employees', orgId, vars.id] });
     },
+  });
+}
+
+export function useDeleteEmployee() {
+  const qc = useQueryClient();
+  const { orgId } = useActiveOrg();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke('delete-employee', {
+        body: { user_id: userId, organization_id: orgId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const db = getDb();
+      await db.runAsync(
+        'UPDATE appointments SET employee_id=NULL, _synced=0 WHERE employee_id=? AND organization_id=?',
+        [userId, orgId]
+      );
+      await db.runAsync(
+        'UPDATE profiles SET _deleted=1, _synced=0 WHERE id=? AND organization_id=?',
+        [userId, orgId]
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ refetchType: 'all' }),
   });
 }
 

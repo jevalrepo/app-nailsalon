@@ -73,9 +73,9 @@ export function useUpdateTransaction() {
 
       await db.runAsync(
         `UPDATE transactions SET type=?, amount=?, description=?, category=?, payment_method=?, date=?,
-         appointment_id=?, employee_id=?, updated_at=?, _synced=0 WHERE id=?`,
+         appointment_id=?, employee_id=?, updated_at=?, _synced=0 WHERE id=? AND organization_id=?`,
         [input.type, input.amount, input.description, input.category, input.payment_method,
-          input.date, input.appointment_id ?? null, input.employee_id ?? null, now, id]
+          input.date, input.appointment_id ?? null, input.employee_id ?? null, now, id, orgId]
       );
 
       enqueue({ table: 'transactions', operation: 'UPDATE', rowId: id, payload: { id, ...input, updated_at: now }, organization_id: orgId ?? null });
@@ -92,7 +92,7 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: async (id: string) => {
       const db = getDb();
-      await db.runAsync('UPDATE transactions SET _deleted=1, _synced=0 WHERE id=?', [id]);
+      await db.runAsync('UPDATE transactions SET _deleted=1, _synced=0 WHERE id=? AND organization_id=?', [id, orgId]);
       enqueue({ table: 'transactions', operation: 'DELETE', rowId: id, payload: { id }, organization_id: orgId ?? null });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),

@@ -37,15 +37,28 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (input: CreateAppointmentInput) => {
-      if (!orgId) throw new Error('No hay organización activa');
+      const activeOrgId = orgId ?? useAuthStore.getState().activeOrganizationId;
+      if (!activeOrgId) throw new Error('No hay organización activa');
+
+      // Resolver branchId: usar el del store o buscar el default en SQLite
+      let activeBranchId = branchId ?? useAuthStore.getState().activeBranchId;
+      if (!activeBranchId) {
+        const db2 = getDb();
+        const defaultBranch = await db2.getFirstAsync<{ id: string }>(
+          'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+          [activeOrgId]
+        );
+        activeBranchId = defaultBranch?.id ?? null;
+      }
+
       const db = getDb();
       const apptId = randomUUID();
       const now = new Date().toISOString();
 
       const apptRow = {
         id: apptId,
-        organization_id: orgId,
-        branch_id: branchId,
+        organization_id: activeOrgId,
+        branch_id: activeBranchId,
         client_id: input.client_id,
         employee_id: input.employee_id,
         scheduled_at: input.scheduled_at,
@@ -60,7 +73,7 @@ export function useCreateAppointment() {
         await db.runAsync(
           `INSERT INTO appointments (id, organization_id, branch_id, client_id, employee_id, scheduled_at, notes, status, payment_status, recurrence_type, created_at, _synced)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'none', ?, 0)`,
-          [apptId, orgId, branchId ?? null, input.client_id, input.employee_id, input.scheduled_at, input.notes ?? null, now]
+          [apptId, activeOrgId, activeBranchId ?? null, input.client_id, input.employee_id, input.scheduled_at, input.notes ?? null, now]
         );
 
         for (const sid of input.service_ids) {
@@ -73,7 +86,7 @@ export function useCreateAppointment() {
         }
       });
 
-      enqueue({ table: 'appointments', operation: 'INSERT', rowId: apptId, payload: apptRow, organization_id: orgId });
+      enqueue({ table: 'appointments', operation: 'INSERT', rowId: apptId, payload: apptRow, organization_id: activeOrgId });
 
       const svcRows = await db.getAllAsync<{ id: string; service_id: string; price_snapshot: number }>(
         'SELECT id, service_id, price_snapshot FROM appointment_services WHERE appointment_id=?',
@@ -282,6 +295,35 @@ export function useCompleteAppointment() {
       qc.invalidateQueries({ queryKey: ['appointments'] });
       qc.invalidateQueries({ queryKey: ['appointment', orgId, id] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+}
+
+export function useDeleteAppointment() {
+  const qc = useQueryClient();
+  const { orgId } = useActiveOrg();
+  const { enqueue } = useSyncQueue();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const activeOrgId = orgId ?? useAuthStore.getState().activeOrganizationId;
+      const db = getDb();
+      const now = new Date().toISOString();
+
+      await db.runAsync(
+        `UPDATE appointment_services SET _deleted=1, _synced=0 WHERE appointment_id=?`,
+        [id]
+      );
+      await db.runAsync(
+        `UPDATE appointments SET _deleted=1, _synced=0, updated_at=? WHERE id=?`,
+        [now, id]
+      );
+
+      enqueue({ table: 'appointment_services', operation: 'DELETE', rowId: id, payload: { appointment_id: id }, organization_id: activeOrgId ?? null });
+      enqueue({ table: 'appointments', operation: 'DELETE', rowId: id, payload: { id }, organization_id: activeOrgId ?? null });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] });
     },
   });
 }

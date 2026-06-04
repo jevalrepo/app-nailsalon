@@ -1,5 +1,5 @@
 import {
-  View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, Platform, Modal, Image,
+  View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Redirect } from 'expo-router';
@@ -12,7 +12,10 @@ import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { usePreferencesStore } from '@/stores/usePreferencesStore';
 import { useBusinessConfig, useUpdateBusinessConfig } from '@/hooks/useBusinessConfig';
 import type { BusinessConfig } from '@/hooks/useBusinessConfig';
-import { useLogoUpload } from '@/hooks/useLogoUpload';
+import { getDb } from '@/lib/db/database';
+import { pullFromSupabase } from '@/lib/sync/syncManager';
+import { useSyncQueue } from '@/stores/useSyncQueue';
+
 
 const DAY_LABELS: { short: string; abbr: string }[] = [
   { short: 'Domingo',    abbr: 'Do' },
@@ -101,37 +104,49 @@ export default function AdminConfigScreen() {
   const { notificationLeadMinutes, setNotificationLeadMinutes } = usePreferencesStore();
   const { data: remoteConfig, isLoading } = useBusinessConfig();
   const updateMutation = useUpdateBusinessConfig();
-  const { pickAndUpload, removeLogo, isUploading } = useLogoUpload();
 
-  const [form, setForm] = useState<Pick<BusinessConfig, 'open_time' | 'close_time' | 'work_days' | 'currency' | 'off_hours_surcharge' | 'off_hours_surcharge_type'>>({
+  type FormData = Pick<BusinessConfig, 'open_time' | 'close_time' | 'work_days' | 'currency' | 'off_hours_surcharge' | 'off_hours_surcharge_type'>;
+
+  const [form, setForm] = useState<FormData>({
     open_time: '09:00', close_time: '18:00',
     work_days: [1, 2, 3, 4, 5, 6],
     currency: 'MXN', off_hours_surcharge: 0, off_hours_surcharge_type: 'fixed',
   });
-  const [dirty, setDirty] = useState(false);
-  // null = closed, 'open' = apertura visible, 'close' = cierre visible
+  const [original, setOriginal] = useState<FormData>({
+    open_time: '09:00', close_time: '18:00',
+    work_days: [1, 2, 3, 4, 5, 6],
+    currency: 'MXN', off_hours_surcharge: 0, off_hours_surcharge_type: 'fixed',
+  });
   const [activePicker, setActivePicker] = useState<'open' | 'close' | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (remoteConfig) {
-      setForm({
+      const loaded: FormData = {
         open_time: remoteConfig.open_time,
         close_time: remoteConfig.close_time,
         work_days: remoteConfig.work_days,
         currency: remoteConfig.currency,
         off_hours_surcharge: remoteConfig.off_hours_surcharge,
         off_hours_surcharge_type: remoteConfig.off_hours_surcharge_type ?? 'fixed',
-      });
-      setDirty(false);
+      };
+      setForm(loaded);
+      setOriginal(loaded);
     }
   }, [remoteConfig]);
 
-  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+  const dirty =
+    form.open_time !== original.open_time ||
+    form.close_time !== original.close_time ||
+    form.currency !== original.currency ||
+    form.off_hours_surcharge !== original.off_hours_surcharge ||
+    form.off_hours_surcharge_type !== original.off_hours_surcharge_type ||
+    JSON.stringify(form.work_days) !== JSON.stringify(original.work_days);
+
+  if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
+
+  function update<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
-    setDirty(true);
   }
 
   function toggleDay(day: number) {
@@ -148,7 +163,7 @@ export default function AdminConfigScreen() {
     }
     try {
       await updateMutation.mutateAsync(form);
-      setDirty(false);
+      setOriginal(form);
       Alert.alert('Guardado', 'Configuración guardada correctamente.');
     } catch {
       Alert.alert('Error', 'No se pudo guardar.');
@@ -188,6 +203,49 @@ export default function AdminConfigScreen() {
     }
   }
 
+  async function handleFullSync() {
+    Alert.alert(
+      'Sincronizar desde servidor',
+      'Esto reemplazará todos los datos locales con los datos actuales de Supabase. ¿Continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sincronizar',
+          style: 'destructive',
+          onPress: async () => {
+            setIsSyncing(true);
+            try {
+              const db = getDb();
+              // Limpiar tablas locales que se sincronizan
+              await db.execAsync(`
+                DELETE FROM appointment_services;
+                DELETE FROM appointments;
+                DELETE FROM transactions;
+                DELETE FROM clients;
+                DELETE FROM services;
+                DELETE FROM inventory;
+                DELETE FROM designs;
+                DELETE FROM tasks;
+                DELETE FROM agenda_blocks;
+                DELETE FROM profiles;
+                DELETE FROM branches;
+                DELETE FROM business_config;
+              `);
+              // Vaciar cola de sync pendiente
+              useSyncQueue.setState({ queue: [] });
+              await pullFromSupabase(org?.id);
+              Alert.alert('Listo', 'Datos sincronizados correctamente desde el servidor.');
+            } catch {
+              Alert.alert('Error', 'No se pudo sincronizar. Verifica tu conexión e intenta de nuevo.');
+            } finally {
+              setIsSyncing(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (isLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -200,107 +258,15 @@ export default function AdminConfigScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 }}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, flex: 1 })}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 }}>
+        <Pressable onPress={() => router.back()} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: 'flex-start' })}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text }}>Horario y preferencias</Text>
         </Pressable>
-        {dirty && (
-          <Pressable
-            onPress={handleSave}
-            disabled={updateMutation.isPending}
-            style={({ pressed }) => ({
-              backgroundColor: accent, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
-              opacity: pressed || updateMutation.isPending ? 0.7 : 1,
-            })}
-          >
-            {updateMutation.isPending
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Guardar</Text>
-            }
-          </Pressable>
-        )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}>
-
-        {/* ── Logo del salón ── */}
-        <View style={{ marginTop: 8, marginBottom: 24 }}>
-          <SectionTitle label="Logo del salón" colors={colors} />
-          <View style={{
-            backgroundColor: colors.surfaceElevated, borderRadius: 20, padding: 20,
-            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-            alignItems: 'center', gap: 16,
-          }}>
-            <View style={{
-              width: 100, height: 100, borderRadius: 24,
-              backgroundColor: colors.surface,
-              borderWidth: 2, borderColor: colors.border,
-              alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden',
-            }}>
-              {org?.logo_url ? (
-                <Image source={{ uri: org.logo_url }} style={{ width: 100, height: 100 }} resizeMode="cover" />
-              ) : (
-                <Ionicons name="sparkles" size={38} color={accent} />
-              )}
-              {isUploading && (
-                <View style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <ActivityIndicator color="#fff" />
-                </View>
-              )}
-            </View>
-
-            <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center' }}>
-              {org?.logo_url ? 'Logo actual del salón' : 'Sin logo — se mostrará un ícono genérico'}
-            </Text>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable
-                onPress={async () => {
-                  const url = await pickAndUpload();
-                  if (url) Alert.alert('Listo', 'Logo actualizado correctamente.');
-                }}
-                disabled={isUploading}
-                style={({ pressed }) => ({
-                  flex: 1, height: 42, borderRadius: 12,
-                  backgroundColor: accent, alignItems: 'center', justifyContent: 'center',
-                  flexDirection: 'row', gap: 6,
-                  opacity: pressed || isUploading ? 0.7 : 1,
-                })}
-              >
-                <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>
-                  {org?.logo_url ? 'Cambiar' : 'Subir logo'}
-                </Text>
-              </Pressable>
-
-              {org?.logo_url && (
-                <Pressable
-                  onPress={() => {
-                    Alert.alert('Eliminar logo', '¿Quitar el logo del salón?', [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Eliminar', style: 'destructive', onPress: () => removeLogo() },
-                    ]);
-                  }}
-                  disabled={isUploading}
-                  style={({ pressed }) => ({
-                    height: 42, paddingHorizontal: 16, borderRadius: 12,
-                    borderWidth: 1.5, borderColor: '#FF453A',
-                    alignItems: 'center', justifyContent: 'center',
-                    opacity: pressed || isUploading ? 0.7 : 1,
-                  })}
-                >
-                  <Ionicons name="trash-outline" size={17} color="#FF453A" />
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </View>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
 
         {/* ── Horario de atención ── */}
         <View style={{ marginTop: 8, marginBottom: 24 }}>
@@ -674,11 +640,58 @@ export default function AdminConfigScreen() {
           </View>
         </View>
 
+        {/* ── Datos y sincronización ── */}
+        <View style={{ marginBottom: 24 }}>
+          <SectionTitle label="Datos y sincronización" colors={colors} />
+          <View style={{
+            backgroundColor: colors.surfaceElevated, borderRadius: 20, padding: 16,
+            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+          }}>
+            <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16, lineHeight: 20 }}>
+              Si los datos de la app no coinciden con el servidor, usa esta opción para reemplazar todo el contenido local con la información más reciente de Supabase.
+            </Text>
+            <Pressable
+              onPress={handleFullSync}
+              disabled={isSyncing}
+              style={({ pressed }) => ({
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                backgroundColor: '#FF453A' + '15', borderWidth: 1.5, borderColor: '#FF453A',
+                borderRadius: 14, paddingVertical: 14,
+                opacity: pressed || isSyncing ? 0.7 : 1,
+              })}
+            >
+              {isSyncing
+                ? <ActivityIndicator size="small" color="#FF453A" />
+                : <Ionicons name="refresh-circle-outline" size={20} color="#FF453A" />
+              }
+              <Text style={{ fontSize: 15, fontWeight: '600', color: '#FF453A' }}>
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar desde servidor'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
         <Text style={{ textAlign: 'center', fontSize: 12, color: colors.textTertiary, marginTop: 8 }}>
           Coraline Nails v1.0.0
         </Text>
 
       </ScrollView>
+
+      {/* Botón fijo */}
+      <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
+        <Pressable
+          onPress={handleSave}
+          disabled={!dirty || updateMutation.isPending}
+          style={{ marginTop: 8, backgroundColor: dirty ? '#F4A99A' : colors.border, borderRadius: 16, paddingVertical: 18, alignItems: 'center' }}
+        >
+          {updateMutation.isPending
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={{ color: dirty ? '#fff' : colors.textSecondary, fontSize: 17, fontWeight: '700' }}>Guardar</Text>
+          }
+        </Pressable>
+      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

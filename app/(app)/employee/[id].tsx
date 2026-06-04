@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { useEmployeeById, useEmployeeStats } from '@/hooks/useEmployees';
-import { useUpdateEmployee, useChangeEmployeeRole } from '@/hooks/useEmployeeMutations';
+import { useUpdateEmployee, useChangeEmployeeRole, useDeleteEmployee } from '@/hooks/useEmployeeMutations';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import type { UserRole } from '@/types';
@@ -166,10 +166,13 @@ export default function EmployeeDetailScreen() {
   const { colors, accent } = useTheme();
   const { orgRole } = useActiveOrg();
   const isAdmin = orgRole === 'admin' || orgRole === 'owner';
+  const isOwner = orgRole === 'owner';
+  const profile = useAuthStore((s) => s.profile);
 
   const { data: employee, isLoading } = useEmployeeById(id);
   const { data: stats } = useEmployeeStats(id);
   const updateEmployee = useUpdateEmployee();
+  const deleteEmployee = useDeleteEmployee();
 
   // Edit state
   const [editing, setEditing] = useState(false);
@@ -187,6 +190,28 @@ export default function EmployeeDetailScreen() {
   function cancelEdit() {
     setEditing(false);
     setNameError('');
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      'Eliminar empleada',
+      `¿Eliminar a ${employee?.full_name}? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteEmployee.mutateAsync(id!);
+              router.back();
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'No se pudo eliminar la empleada');
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function handleSave() {
@@ -456,6 +481,20 @@ export default function EmployeeDetailScreen() {
               accent={accent}
             />
           </View>
+        )}
+
+        {/* Botón eliminar — solo owner, no a sí mismo */}
+        {isOwner && !isSelf && (
+          <Pressable
+            onPress={handleDelete}
+            disabled={deleteEmployee.isPending}
+            style={{ marginTop: 8, backgroundColor: '#FF453A18', borderRadius: 16, paddingVertical: 18, alignItems: 'center' }}
+          >
+            {deleteEmployee.isPending
+              ? <ActivityIndicator color="#FF453A" />
+              : <Text style={{ color: '#FF453A', fontSize: 17, fontWeight: '700' }}>Eliminar empleada</Text>
+            }
+          </Pressable>
         )}
 
       </ScrollView>

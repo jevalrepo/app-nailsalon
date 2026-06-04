@@ -37,12 +37,22 @@ export function useAppointmentsByDate(date: string) {
 
   return useQuery({
     queryKey: ['appointments', 'by-date', orgId, branchId, date],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
       const startTs = `${date}T00:00:00`;
       const endTs = `${date}T23:59:59`;
+
+      // Resolver branchId: usar el activo o, si no hay, la única sucursal de la org
+      let resolvedBranchId = branchId;
+      if (!resolvedBranchId) {
+        const row = await db.getFirstAsync<{ id: string }>(
+          'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+          [orgId!]
+        );
+        resolvedBranchId = row?.id ?? null;
+      }
 
       const appts = await db.getAllAsync<{
         id: string;
@@ -51,15 +61,26 @@ export function useAppointmentsByDate(date: string) {
         payment_status: string;
         client_name: string;
       }>(
-        `SELECT a.id, a.scheduled_at, a.status, a.payment_status,
-                COALESCE(c.name, 'Sin cliente') AS client_name
-         FROM appointments a
-         LEFT JOIN clients c ON c.id = a.client_id
-         WHERE a.organization_id = ? AND a.branch_id = ?
-           AND a.scheduled_at >= ? AND a.scheduled_at <= ?
-           AND a._deleted = 0
-         ORDER BY a.scheduled_at ASC`,
-        [orgId!, branchId!, startTs, endTs]
+        resolvedBranchId
+          ? `SELECT a.id, a.scheduled_at, a.status, a.payment_status,
+                    COALESCE(c.name, 'Sin cliente') AS client_name
+             FROM appointments a
+             LEFT JOIN clients c ON c.id = a.client_id
+             WHERE a.organization_id = ? AND a.branch_id = ?
+               AND a.scheduled_at >= ? AND a.scheduled_at <= ?
+               AND a._deleted = 0
+             ORDER BY a.scheduled_at ASC`
+          : `SELECT a.id, a.scheduled_at, a.status, a.payment_status,
+                    COALESCE(c.name, 'Sin cliente') AS client_name
+             FROM appointments a
+             LEFT JOIN clients c ON c.id = a.client_id
+             WHERE a.organization_id = ?
+               AND a.scheduled_at >= ? AND a.scheduled_at <= ?
+               AND a._deleted = 0
+             ORDER BY a.scheduled_at ASC`,
+        resolvedBranchId
+          ? [orgId!, resolvedBranchId, startTs, endTs]
+          : [orgId!, startTs, endTs]
       );
 
       if (appts.length === 0) return [];
@@ -111,9 +132,19 @@ export function useBookedSlots(date: string) {
 
   return useQuery({
     queryKey: ['appointments', 'booked-slots', orgId, branchId, date],
-    enabled: !!orgId && !!branchId && !!date,
+    enabled: !!orgId && !!date,
     queryFn: async () => {
       const db = getDb();
+
+      let resolvedBranchId = branchId;
+      if (!resolvedBranchId) {
+        const row = await db.getFirstAsync<{ id: string }>(
+          'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+          [orgId!]
+        );
+        resolvedBranchId = row?.id ?? null;
+      }
+      if (!resolvedBranchId) return [];
 
       const rows = await db.getAllAsync<{ scheduled_at: string; total_duration_min: number }>(
         `SELECT a.scheduled_at,
@@ -126,13 +157,18 @@ export function useBookedSlots(date: string) {
            AND a.status NOT IN ('cancelled', 'no_show')
            AND a._deleted = 0
          GROUP BY a.id`,
-        [orgId!, branchId!, date]
+        [orgId!, resolvedBranchId, date]
       );
 
-      return rows.map((row) => ({
-        start_slot: row.scheduled_at.slice(11, 16),
-        duration_min: row.total_duration_min,
-      })) as BookedSlot[];
+      return rows.map((row) => {
+        const localDate = new Date(row.scheduled_at);
+        const hh = String(localDate.getHours()).padStart(2, '0');
+        const mm = String(localDate.getMinutes()).padStart(2, '0');
+        return {
+          start_slot: `${hh}:${mm}`,
+          duration_min: row.total_duration_min,
+        };
+      }) as BookedSlot[];
     },
   });
 }
@@ -144,19 +180,30 @@ export function useAppointmentCalendarMonth(year: number, month: number) {
 
   return useQuery({
     queryKey: ['appointments', 'calendar-month', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
 
+      let resolvedBranchId = branchId;
+      if (!resolvedBranchId) {
+        const row = await db.getFirstAsync<{ id: string }>(
+          'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+          [orgId!]
+        );
+        resolvedBranchId = row?.id ?? null;
+      }
+
       const [apptRows, clientRows] = await Promise.all([
-        db.getAllAsync<{ scheduled_at: string }>(
-          `SELECT scheduled_at FROM appointments
-           WHERE organization_id = ? AND branch_id = ?
-             AND scheduled_at >= ? AND scheduled_at <= ?
-             AND _deleted = 0`,
-          [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`]
-        ),
+        resolvedBranchId
+          ? db.getAllAsync<{ scheduled_at: string }>(
+              `SELECT scheduled_at FROM appointments
+               WHERE organization_id = ? AND branch_id = ?
+                 AND scheduled_at >= ? AND scheduled_at <= ?
+                 AND _deleted = 0`,
+              [orgId!, resolvedBranchId, `${start}T00:00:00`, `${end}T23:59:59`]
+            )
+          : Promise.resolve([]),
         db.getAllAsync<{ birthdate: string }>(
           `SELECT birthdate FROM clients
            WHERE organization_id = ? AND birthdate IS NOT NULL AND _deleted = 0`,

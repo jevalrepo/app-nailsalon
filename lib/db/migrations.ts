@@ -226,4 +226,39 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_inventory_branch    ON inventory(branch_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_branch        ON tasks(branch_id);
   `,
+
+  // v4 — Limpieza de registros sin organization_id para forzar re-sync correcto
+  // Se eliminaron porque el pull anterior no incluía organization_id en el SELECT
+  `
+  DELETE FROM appointments       WHERE organization_id IS NULL;
+  DELETE FROM clients            WHERE organization_id IS NULL;
+  DELETE FROM services           WHERE organization_id IS NULL;
+  DELETE FROM transactions       WHERE organization_id IS NULL;
+  DELETE FROM inventory          WHERE organization_id IS NULL;
+  DELETE FROM designs            WHERE organization_id IS NULL;
+  DELETE FROM tasks              WHERE organization_id IS NULL;
+  DELETE FROM appointment_services WHERE appointment_id NOT IN (SELECT id FROM appointments);
+  `,
+
+  // v5 — Migrar business_config: id TEXT + organization_id para soporte multi-tenant
+  `
+  DROP TABLE IF EXISTS business_config;
+  CREATE TABLE business_config (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    business_name TEXT,
+    phone TEXT,
+    address TEXT,
+    instagram_handle TEXT,
+    open_time TEXT,
+    close_time TEXT,
+    work_days TEXT NOT NULL DEFAULT '[1,2,3,4,5,6]',
+    currency TEXT NOT NULL DEFAULT 'MXN',
+    off_hours_surcharge REAL NOT NULL DEFAULT 0,
+    off_hours_surcharge_type TEXT NOT NULL DEFAULT 'fixed',
+    updated_at TEXT,
+    _synced INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS idx_business_config_org ON business_config(organization_id);
+  `,
 ];

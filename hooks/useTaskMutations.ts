@@ -66,7 +66,7 @@ export function useUpdateTask() {
       if (assigned_to !== undefined) patch.assigned_to = assigned_to;
 
       const setClauses = Object.keys(patch).map((k) => `${k}=?`).join(', ');
-      await db.runAsync(`UPDATE tasks SET ${setClauses} WHERE id=?`, [...Object.values(patch), id] as SQLiteBindParams);
+      await db.runAsync(`UPDATE tasks SET ${setClauses} WHERE id=? AND organization_id=?`, [...Object.values(patch), id, orgId] as SQLiteBindParams);
 
       const supabasePatch: Record<string, unknown> = { updated_at: now };
       if (title !== undefined)       supabasePatch.title = title.trim();
@@ -93,8 +93,8 @@ export function useToggleTask() {
       const now = new Date().toISOString();
 
       await db.runAsync(
-        `UPDATE tasks SET is_completed=?, updated_at=?, _synced=0 WHERE id=?`,
-        [completed ? 1 : 0, now, id]
+        `UPDATE tasks SET is_completed=?, updated_at=?, _synced=0 WHERE id=? AND organization_id=?`,
+        [completed ? 1 : 0, now, id, orgId]
       );
 
       enqueue({ table: 'tasks', operation: 'UPDATE', rowId: id, payload: { id, is_completed: completed, updated_at: now }, organization_id: orgId ?? null });
@@ -111,7 +111,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (id: string) => {
       const db = getDb();
-      await db.runAsync('UPDATE tasks SET _deleted=1, _synced=0 WHERE id=?', [id]);
+      await db.runAsync('UPDATE tasks SET _deleted=1, _synced=0 WHERE id=? AND organization_id=?', [id, orgId]);
       enqueue({ table: 'tasks', operation: 'DELETE', rowId: id, payload: { id }, organization_id: orgId ?? null });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', orgId] }),

@@ -22,6 +22,15 @@ export interface TodayAppointment {
   total_price: number;
 }
 
+async function resolveBranch(db: ReturnType<typeof getDb>, orgId: string, branchId: string | null): Promise<string | null> {
+  if (branchId) return branchId;
+  const row = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+    [orgId]
+  );
+  return row?.id ?? null;
+}
+
 export function useTodayAppointments() {
   const { orgId } = useActiveOrg();
   const { branchId } = useActiveBranch();
@@ -29,9 +38,11 @@ export function useTodayAppointments() {
 
   return useQuery({
     queryKey: ['appointments', 'today', orgId, branchId, start],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
 
       const appts = await db.getAllAsync<{
         id: string;
@@ -47,7 +58,7 @@ export function useTodayAppointments() {
            AND a.scheduled_at >= ? AND a.scheduled_at <= ?
            AND a._deleted = 0
          ORDER BY a.scheduled_at ASC`,
-        [orgId!, branchId!, start, end]
+        [orgId!, resolvedBranchId, start, end]
       );
 
       if (appts.length === 0) return [];
@@ -94,14 +105,16 @@ export function useTodayIncome() {
 
   return useQuery({
     queryKey: ['transactions', 'today-income', orgId, branchId, dateStr],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return 0;
       const row = await db.getFirstAsync<{ total: number }>(
         `SELECT COALESCE(SUM(amount), 0) AS total
          FROM transactions
          WHERE organization_id = ? AND branch_id = ? AND type = 'income' AND date = ? AND _deleted = 0`,
-        [orgId!, branchId!, dateStr]
+        [orgId!, resolvedBranchId, dateStr]
       );
       return row?.total ?? 0;
     },

@@ -145,40 +145,46 @@ export default function ClientsScreen() {
       {isLoading ? (
         <ActivityIndicator color={accent} style={{ marginTop: 40 }} />
       ) : clients.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80 }}>
-          <View style={{
-            width: 72, height: 72, borderRadius: 22,
-            backgroundColor: search ? colors.surface : accent + '18',
-            alignItems: 'center', justifyContent: 'center',
-            marginBottom: 16,
-          }}>
-            <Ionicons
-              name={search ? 'search-outline' : 'people-outline'}
-              size={32}
-              color={search ? colors.textTertiary : accent}
-            />
-          </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
-            {search ? 'Sin resultados' : 'Sin clientas registradas'}
-          </Text>
-          <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 6, marginBottom: 20, textAlign: 'center' }}>
-            {search ? `No encontramos "${search}"` : 'Agrega tu primera clienta'}
-          </Text>
-          {!search && (
-            <Pressable
-              onPress={() => router.push('/client/new')}
-              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-            >
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 80 }}>
+          <Pressable
+            onPress={!search ? () => router.push('/client/new') : undefined}
+            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+          >
+            <View style={{
+              backgroundColor: colors.surfaceElevated,
+              borderRadius: 20, padding: 36,
+              alignItems: 'center',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+            }}>
               <View style={{
-                backgroundColor: accent, borderRadius: 14,
-                paddingHorizontal: 24, paddingVertical: 12,
+                width: 64, height: 64, borderRadius: 20,
+                backgroundColor: search ? colors.surface : accent + '18',
+                alignItems: 'center', justifyContent: 'center',
+                marginBottom: 16,
               }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>
-                  + Nueva clienta
-                </Text>
+                <Ionicons
+                  name={search ? 'search-outline' : 'people-outline'}
+                  size={30}
+                  color={search ? colors.textTertiary : accent}
+                />
               </View>
-            </Pressable>
-          )}
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                {search ? 'Sin resultados' : 'Sin clientas registradas'}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 6, textAlign: 'center' }}>
+                {search ? `No encontramos "${search}"` : 'Toca aquí para agregar\ntu primera clienta'}
+              </Text>
+              {!search && (
+                <View style={{
+                  marginTop: 20, paddingHorizontal: 20, paddingVertical: 10,
+                  backgroundColor: accent, borderRadius: 12,
+                }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>+ Nueva clienta</Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
         </View>
       ) : (
         <FlatList

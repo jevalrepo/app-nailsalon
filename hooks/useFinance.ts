@@ -55,6 +55,15 @@ function monthRange(year: number, month: number) {
   return { start, end };
 }
 
+async function resolveBranch(db: ReturnType<typeof getDb>, orgId: string, branchId: string | null): Promise<string | null> {
+  if (branchId) return branchId;
+  const row = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+    [orgId]
+  );
+  return row?.id ?? null;
+}
+
 export function useMonthSummary(year: number, month: number) {
   const { orgId } = useActiveOrg();
   const { branchId } = useActiveBranch();
@@ -62,17 +71,19 @@ export function useMonthSummary(year: number, month: number) {
 
   return useQuery({
     queryKey: ['transactions', 'month-summary', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return { income: 0, expenses: 0, net: 0 } as FinanceSummary;
       const row = await db.getFirstAsync<{ income: number; expenses: number }>(
         `SELECT
            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
            COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
          FROM transactions
          WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
-        [orgId!, branchId!, start, end]
+        [orgId!, resolvedBranchId, start, end]
       );
       const income = row?.income ?? 0;
       const expenses = row?.expenses ?? 0;
@@ -87,17 +98,19 @@ export function useRecentTransactions(limit = 10) {
 
   return useQuery({
     queryKey: ['transactions', 'recent', orgId, branchId, limit],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<RecentTransaction>(
         `SELECT id, type, amount, description, category, payment_method, date
          FROM transactions
          WHERE organization_id = ? AND branch_id = ? AND _deleted = 0
          ORDER BY date DESC, created_at DESC
          LIMIT ?`,
-        [orgId!, branchId!, limit]
+        [orgId!, resolvedBranchId, limit]
       );
       return rows;
     },
@@ -111,17 +124,19 @@ export function useMonthTransactions(year: number, month: number) {
 
   return useQuery({
     queryKey: ['transactions', 'month', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<Transaction>(
         `SELECT id, type, amount, description, category, payment_method, date,
                 appointment_id, employee_id, created_by, created_at
          FROM transactions
          WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0
          ORDER BY date DESC, created_at DESC`,
-        [orgId!, branchId!, start, end]
+        [orgId!, resolvedBranchId, start, end]
       );
       return rows;
     },
@@ -157,10 +172,12 @@ export function useMonthCategorySummary(year: number, month: number, type: 'inco
 
   return useQuery({
     queryKey: ['transactions', 'categories', orgId, branchId, year, month, type],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<{ category: string; total: number; count: number }>(
         `SELECT category,
                 COALESCE(SUM(amount), 0) AS total,
@@ -169,7 +186,7 @@ export function useMonthCategorySummary(year: number, month: number, type: 'inco
          WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND type = ? AND _deleted = 0
          GROUP BY category
          ORDER BY total DESC`,
-        [orgId!, branchId!, start, end, type]
+        [orgId!, resolvedBranchId, start, end, type]
       );
       return rows as CategorySummary[];
     },
@@ -182,15 +199,17 @@ export function useDayCashClose(dateStr: string) {
 
   return useQuery({
     queryKey: ['transactions', 'cash-close', orgId, branchId, dateStr],
-    enabled: !!orgId && !!branchId && !!dateStr,
+    enabled: !!orgId && !!dateStr,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return { cash_income: 0, cash_expenses: 0, card_income: 0, transfer_income: 0, total_income: 0, total_expenses: 0, net: 0 } as CashCloseSummary;
       const rows = await db.getAllAsync<{ type: string; amount: number; payment_method: string }>(
         `SELECT type, amount, payment_method
          FROM transactions
          WHERE organization_id = ? AND branch_id = ? AND date = ? AND _deleted = 0`,
-        [orgId!, branchId!, dateStr]
+        [orgId!, resolvedBranchId, dateStr]
       );
 
       let cash_income = 0, cash_expenses = 0, card_income = 0, transfer_income = 0;

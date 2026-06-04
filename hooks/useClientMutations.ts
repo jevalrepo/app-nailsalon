@@ -25,13 +25,14 @@ export function useCreateClient() {
 
   return useMutation({
     mutationFn: async (input: CreateClientInput) => {
-      if (!orgId) throw new Error('No hay organización activa');
+      const activeOrgId = orgId ?? useAuthStore.getState().activeOrganizationId;
+      if (!activeOrgId) throw new Error('No hay organización activa');
       const db = getDb();
       const id = randomUUID();
       const now = new Date().toISOString();
       const row = {
         id,
-        organization_id: orgId,
+        organization_id: activeOrgId,
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
         email: input.email?.trim() || null,
@@ -45,10 +46,10 @@ export function useCreateClient() {
       await db.runAsync(
         `INSERT INTO clients (id, organization_id, name, phone, email, birthdate, notes, no_show_count, created_by, created_at, _synced)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0)`,
-        [id, orgId, row.name, row.phone, row.email, row.birthdate, row.notes, row.created_by, now]
+        [id, activeOrgId, row.name, row.phone, row.email, row.birthdate, row.notes, row.created_by, now]
       );
 
-      enqueue({ table: 'clients', operation: 'INSERT', rowId: id, payload: row, organization_id: orgId });
+      enqueue({ table: 'clients', operation: 'INSERT', rowId: id, payload: row, organization_id: activeOrgId });
 
       return id;
     },

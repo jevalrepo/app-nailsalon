@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
@@ -14,6 +14,7 @@ import { useCreateAppointment } from '@/hooks/useAppointmentMutations';
 import { useBookedSlots, type BookedSlot } from '@/hooks/useAppointments';
 import { useBusinessConfig, isWithinWorkHours, isWorkDate } from '@/hooks/useBusinessConfig';
 import { Input } from '@/components/ui/Input';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Client, Service, Profile, ServiceCategory } from '@/types';
 
 const CATEGORY_ICONS: Record<ServiceCategory, React.ComponentProps<typeof Ionicons>['name']> = {
@@ -92,10 +93,10 @@ function SelectRow({
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <View style={{
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: selected ? accent + '12' : colors.surfaceElevated,
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 20, padding: 16,
         marginBottom: 8,
-        borderWidth: 1.5, borderColor: selected ? accent : 'transparent',
+        borderWidth: 1.5, borderColor: 'transparent',
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
       }}>
@@ -141,10 +142,10 @@ function CheckRow({
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <View style={{
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: selected ? accent + '12' : colors.surfaceElevated,
+        backgroundColor: colors.surfaceElevated,
         borderRadius: 20, padding: 16,
         marginBottom: 8,
-        borderWidth: 1.5, borderColor: selected ? accent : 'transparent',
+        borderWidth: 1.5, borderColor: 'transparent',
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
       }}>
@@ -454,6 +455,24 @@ export default function NewAppointmentScreen() {
   const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
   const { data: businessConfig } = useBusinessConfig();
   const createMutation = useCreateAppointment();
+  const { profile } = useAuthStore();
+
+  // Lista de empleadas asegurando que el usuario logueado siempre aparezca
+  const employeeList = useMemo(() => {
+    if (!profile) return employees;
+    const alreadyIn = employees.some(e => e.id === profile.id);
+    if (alreadyIn) return employees;
+    const currentUser: Profile = {
+      id: profile.id,
+      full_name: profile.full_name,
+      role: profile.role,
+      phone: profile.phone,
+      avatar_url: profile.avatar_url,
+      organization_id: profile.organization_id,
+      created_at: '',
+    };
+    return [currentUser, ...employees];
+  }, [employees, profile]);
 
   // Form state
   const [step, setStep] = useState<Step>('client');
@@ -469,6 +488,13 @@ export default function NewAppointmentScreen() {
   const { data: bookedSlots = [] } = useBookedSlots(selectedDate);
 
   const currentStepIndex = STEPS.indexOf(step);
+
+  // Auto-seleccionar al usuario logueado al llegar al paso de empleada
+  useEffect(() => {
+    if (step === 'employee' && !selectedEmployeeId && profile?.id) {
+      setSelectedEmployeeId(profile.id);
+    }
+  }, [step]);
 
   // Filtered clients
   const filteredClients = useMemo(() => {
@@ -723,15 +749,11 @@ export default function NewAppointmentScreen() {
           <View>
             {loadingEmployees ? (
               <ActivityIndicator color={accent} />
-            ) : employees.length === 0 ? (
-              <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 20 }}>
-                No hay empleadas registradas
-              </Text>
             ) : (
-              employees.map(emp => (
+              employeeList.map(emp => (
                 <SelectRow
                   key={emp.id}
-                  label={emp.full_name}
+                  label={emp.id === profile?.id ? `${emp.full_name} (yo)` : emp.full_name}
                   selected={emp.id === selectedEmployeeId}
                   onPress={() => setSelectedEmployeeId(emp.id)}
                   accent={accent}

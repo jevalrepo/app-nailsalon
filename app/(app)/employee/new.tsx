@@ -1,5 +1,5 @@
 import {
-  View, Text, Pressable, ScrollView, Alert, KeyboardAvoidingView, Platform,
+  View, Text, Pressable, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -8,8 +8,8 @@ import { useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateEmployee } from '@/hooks/useEmployeeMutations';
 import { useSyncContext } from '@/lib/sync/SyncProvider';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
 import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
 import type { UserRole } from '@/types';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -19,13 +19,15 @@ function RoleSelector({
   onChange,
   colors,
   accent,
+  isOwner,
 }: {
   value: UserRole;
   onChange: (role: UserRole) => void;
   colors: any;
   accent: string;
+  isOwner: boolean;
 }) {
-  const options: { role: UserRole; label: string; desc: string; icon: IoniconsName }[] = [
+  const allOptions: { role: UserRole; label: string; desc: string; icon: IoniconsName }[] = [
     {
       role: 'employee',
       label: 'Empleada',
@@ -39,6 +41,7 @@ function RoleSelector({
       icon: 'shield-checkmark-outline',
     },
   ];
+  const options = isOwner ? allOptions : allOptions.filter(o => o.role === 'employee');
 
   return (
     <View style={{ gap: 10 }}>
@@ -97,6 +100,8 @@ export default function NewEmployeeScreen() {
   const { colors, accent } = useTheme();
   const createEmployee = useCreateEmployee();
   const { isConnected } = useSyncContext();
+  const { orgRole } = useActiveOrg();
+  const isOwner = orgRole === 'owner';
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -149,22 +154,10 @@ export default function NewEmployeeScreen() {
         keyboardVerticalOffset={0}
       >
         {/* Header */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 20,
-          paddingTop: 16,
-          paddingBottom: 12,
-        }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginRight: 12 })}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
+          <Pressable onPress={() => router.back()} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ fontSize: 26, fontWeight: '700', color: colors.text }}>Nueva empleada</Text>
           </Pressable>
-          <Text style={{ flex: 1, fontSize: 22, fontWeight: '700', color: colors.text }}>
-            Nueva empleada
-          </Text>
         </View>
 
         <ScrollView
@@ -293,24 +286,46 @@ export default function NewEmployeeScreen() {
               onChange={setRole}
               colors={colors}
               accent={accent}
+              isOwner={isOwner}
             />
+            {!isOwner && (
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>
+                Solo el propietario puede crear administradoras.
+              </Text>
+            )}
           </View>
 
-          {/* Botón */}
-          {!isConnected && (
-            <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 8, fontSize: 12 }}>
-              Se requiere conexión a internet para crear empleadas
-            </Text>
-          )}
-          <Button
-            label="Crear empleada"
-            onPress={handleCreate}
-            loading={createEmployee.isPending}
-            variant="primary"
-            disabled={!isConnected}
-          />
-
         </ScrollView>
+
+        {/* Botón fijo */}
+        {(() => {
+          const dirty = fullName.trim().length > 0 &&
+            /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+            password.length >= 6;
+          return (
+            <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
+              {!isConnected && (
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 8, fontSize: 12 }}>
+                  Se requiere conexión a internet para crear empleadas
+                </Text>
+              )}
+              <Pressable
+                onPress={handleCreate}
+                disabled={!dirty || createEmployee.isPending}
+                style={{
+                  marginTop: 8,
+                  backgroundColor: dirty ? '#F4A99A' : colors.border,
+                  borderRadius: 16, paddingVertical: 18, alignItems: 'center',
+                }}
+              >
+                {createEmployee.isPending
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: dirty ? '#fff' : colors.textSecondary, fontSize: 17, fontWeight: '700' }}>Guardar</Text>
+                }
+              </Pressable>
+            </View>
+          );
+        })()}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

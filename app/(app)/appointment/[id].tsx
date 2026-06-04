@@ -15,6 +15,7 @@ import {
   useCancelAppointment,
   useMarkNoShow,
   useCompleteAppointment,
+  useDeleteAppointment,
 } from '@/hooks/useAppointmentMutations';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -181,6 +182,7 @@ export default function AppointmentDetailScreen() {
   const cancelMutation = useCancelAppointment();
   const noShowMutation = useMarkNoShow();
   const completeMutation = useCompleteAppointment();
+  const deleteMutation = useDeleteAppointment();
   const createTransaction = useCreateTransaction();
   const { session } = useAuthStore();
 
@@ -256,6 +258,29 @@ export default function AppointmentDetailScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
+  }
+
+  function handleDelete() {
+    if (!appt) return;
+    Alert.alert(
+      'Eliminar cita',
+      'Esta acción eliminará la cita permanentemente. ¿Continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMutation.mutateAsync(appt.id);
+              router.back();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function handleCancel() {
@@ -521,6 +546,22 @@ export default function AppointmentDetailScreen() {
         {isMutating && (
           <ActivityIndicator color={accent} style={{ marginTop: 16 }} />
         )}
+
+        {/* Eliminar cita */}
+        <Pressable
+          onPress={handleDelete}
+          disabled={deleteMutation.isPending}
+          style={({ pressed }) => ({
+            marginTop: 24, marginBottom: 8,
+            alignItems: 'center',
+            opacity: pressed || deleteMutation.isPending ? 0.5 : 1,
+          })}
+        >
+          <Text style={{ fontSize: 14, color: '#FF453A', fontWeight: '600' }}>
+            {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar cita'}
+          </Text>
+        </Pressable>
+
       </ScrollView>
 
       {/* Complete modal — solo cuando payment_status es pending */}

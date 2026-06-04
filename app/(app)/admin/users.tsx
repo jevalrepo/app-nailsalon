@@ -36,6 +36,7 @@ function RolePill({ role, accent }: { role: UserRole; accent: string }) {
 function UserCard({
   employee,
   currentUserId,
+  isOwner,
   colors,
   accent,
   onToggleRole,
@@ -43,6 +44,7 @@ function UserCard({
 }: {
   employee: Profile;
   currentUserId: string | undefined;
+  isOwner: boolean;
   colors: any;
   accent: string;
   onToggleRole: (employee: Profile) => void;
@@ -90,7 +92,7 @@ function UserCard({
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <RolePill role={employee.role} accent={accent} />
-        {!isSelf && (
+        {!isSelf && (isOwner || employee.role === 'employee') && (
           <Pressable
             onPress={() => onToggleRole(employee)}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 6 })}
@@ -121,11 +123,24 @@ export default function AdminUsersScreen() {
   const { data: employees, isLoading, error } = useEmployees();
   const changeRole = useChangeEmployeeRole();
   const { orgRole } = useActiveOrg();
+  const profile = useAuthStore((s) => s.profile);
 
   if (orgRole !== 'admin' && orgRole !== 'owner') return <Redirect href="/(app)/(tabs)" />;
 
+  const isOwner = orgRole === 'owner';
+
   function handleToggleRole(employee: Profile) {
+    // Solo owner puede cambiar el rol de un admin
+    if (employee.role === 'admin' && !isOwner) {
+      Alert.alert('Sin permisos', 'Solo el propietario puede cambiar el rol de una administradora.');
+      return;
+    }
     const newRole: UserRole = employee.role === 'admin' ? 'employee' : 'admin';
+    // Solo owner puede ascender a admin
+    if (newRole === 'admin' && !isOwner) {
+      Alert.alert('Sin permisos', 'Solo el propietario puede asignar el rol de administradora.');
+      return;
+    }
     const newRoleLabel = newRole === 'admin' ? 'Administrador' : 'Empleada';
 
     Alert.alert(
@@ -276,6 +291,7 @@ export default function AdminUsersScreen() {
             <UserCard
               employee={item}
               currentUserId={profile?.id}
+              isOwner={isOwner}
               colors={colors}
               accent={accent}
               onToggleRole={handleToggleRole}

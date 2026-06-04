@@ -62,7 +62,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         (async () => {
           await processSyncQueue();
           await pullFromSupabase(orgId);
-          await queryClient.invalidateQueries();
+          await queryClient.invalidateQueries({ refetchType: 'all' });
         })(),
         timeoutPromise,
       ]);
@@ -97,15 +97,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const prev = prevOrgIdRef.current;
     prevOrgIdRef.current = activeOrganizationId;
 
-    // Solo limpiar si realmente cambió (no en la primera carga)
-    if (prev !== null) {
-      clearOrgCache(activeOrganizationId).then(() => {
-        queryClient.clear();
-        if (isConnectedRef.current && sessionRef.current) {
-          triggerSync();
-        }
-      });
-    }
+    // Limpiar siempre al cambiar de org (incluyendo primera carga)
+    clearOrgCache(activeOrganizationId).then(() => {
+      queryClient.clear();
+      if (isConnectedRef.current && sessionRef.current) {
+        triggerSync();
+      }
+    });
   }, [activeOrganizationId]);
 
   // Polling cada 30s — solo si hay conexión Y hay pendientes

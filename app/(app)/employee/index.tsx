@@ -157,55 +157,37 @@ export default function EmployeeListScreen() {
   const totalEmployees = (employees ?? []).filter(e => e.role === 'employee').length;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
 
       {/* Header */}
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 12,
-      }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, flex: 1 })}
-        >
-          <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text }}>
-            Empleadas
-          </Text>
-        </Pressable>
-        {isAdmin && (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable
-              onPress={() => router.push('/invitation')}
-              style={({ pressed }) => ({
-                flexDirection: 'row', alignItems: 'center', gap: 5,
-                height: 36, borderRadius: 12,
-                paddingHorizontal: 12,
-                backgroundColor: accent + '18',
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <Ionicons name="mail-outline" size={16} color={accent} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: accent }}>
-                Invitar
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/employee/new')}
-              style={({ pressed }) => ({
-                width: 36, height: 36, borderRadius: 12,
-                backgroundColor: accent,
-                alignItems: 'center', justifyContent: 'center',
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
+      <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <Pressable onPress={() => router.back()} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ fontSize: 26, fontWeight: '700', color: colors.text }}>Empleadas</Text>
+          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {isAdmin && (
+              <Pressable
+                onPress={() => router.push('/invitation')}
+                style={({ pressed }) => ({
+                  flexDirection: 'row', alignItems: 'center', gap: 5,
+                  height: 36, borderRadius: 12, paddingHorizontal: 12,
+                  backgroundColor: accent + '18', opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <Ionicons name="mail-outline" size={16} color={accent} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: accent }}>Invitar</Text>
+              </Pressable>
+            )}
+            {isAdmin && (
+              <Pressable onPress={() => router.push('/employee/new')} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="add" size={22} color="#fff" />
+                </View>
+              </Pressable>
+            )}
           </View>
-        )}
+        </View>
       </View>
 
       {/* Stats chips */}

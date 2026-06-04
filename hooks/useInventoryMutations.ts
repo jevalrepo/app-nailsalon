@@ -49,8 +49,8 @@ export function useUpdateInventoryItem() {
       const now = new Date().toISOString();
 
       await db.runAsync(
-        `UPDATE inventory SET name=?, quantity=?, unit=?, min_stock=?, updated_at=?, _synced=0 WHERE id=?`,
-        [payload.name, payload.quantity, payload.unit, payload.min_stock, now, id]
+        `UPDATE inventory SET name=?, quantity=?, unit=?, min_stock=?, updated_at=?, _synced=0 WHERE id=? AND organization_id=?`,
+        [payload.name, payload.quantity, payload.unit, payload.min_stock, now, id, orgId]
       );
 
       enqueue({ table: 'inventory', operation: 'UPDATE', rowId: id, payload: { id, ...payload, updated_at: now }, organization_id: orgId ?? null });
@@ -70,7 +70,7 @@ export function useDeleteInventoryItem() {
   return useMutation({
     mutationFn: async (id: string) => {
       const db = getDb();
-      await db.runAsync('UPDATE inventory SET _deleted=1, _synced=0 WHERE id=?', [id]);
+      await db.runAsync('UPDATE inventory SET _deleted=1, _synced=0 WHERE id=? AND organization_id=?', [id, orgId]);
       enqueue({ table: 'inventory', operation: 'DELETE', rowId: id, payload: { id }, organization_id: orgId ?? null });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory', orgId] }),

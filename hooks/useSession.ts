@@ -26,7 +26,7 @@ export function useSession() {
   const {
     session, profile, isLoading,
     setSession, setProfile, setLoading, clear,
-    setOrganizations, setActiveOrganization,
+    setOrganizations, setActiveOrganization, clearActiveOrganization, setOrgsLoaded,
   } = useAuthStore();
 
   useEffect(() => {
@@ -44,6 +44,8 @@ export function useSession() {
       const session = result.data.session;
       setSession(session);
       if (session) {
+        clearActiveOrganization();
+        setOrgsLoaded(false);
         refreshUserData(session.user.id);
       } else {
         clear();
@@ -58,6 +60,8 @@ export function useSession() {
       setLoading(false);
 
       if (session) {
+        clearActiveOrganization();
+        setOrgsLoaded(false);
         setTimeout(() => {
           refreshUserData(session.user.id);
         }, 0);
@@ -149,16 +153,14 @@ export function useSession() {
 
     setOrganizations(orgs, roleMap);
 
-    // Auto-seleccionar si ya hay una guardada y sigue siendo válida
-    const currentOrgId = useAuthStore.getState().activeOrganizationId;
-    const currentOrgStillValid = currentOrgId && orgs.some((o) => o.id === currentOrgId);
-
-    if (currentOrgStillValid) {
-      setActiveOrganization(currentOrgId!, roleMap[currentOrgId!]);
-    } else if (orgs.length === 1) {
+    // Con 1 org: auto-seleccionar. Con 2+: limpiar para forzar org-select
+    if (orgs.length === 1) {
       setActiveOrganization(orgs[0].id, roleMap[orgs[0].id]);
+    } else {
+      clearActiveOrganization();
     }
-    // Si hay múltiples y ninguna guardada → index.tsx redirige a org-select
+
+    setOrgsLoaded(true);
   }
 
   return { session, profile, isLoading };

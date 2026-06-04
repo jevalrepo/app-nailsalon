@@ -25,6 +25,7 @@ interface AuthState {
   organizationRoles: Record<string, TenantRole>;
   activeOrganizationId: string | null;
   activeOrganizationRole: TenantRole | null;
+  orgsLoaded: boolean; // true cuando loadOrganizations terminó
   // Branches
   branches: Branch[];
   activeBranchId: string | null;
@@ -36,6 +37,8 @@ interface AuthState {
   // Org actions
   setOrganizations: (orgs: Organization[], roles?: Record<string, TenantRole>) => void;
   setActiveOrganization: (orgId: string, role: TenantRole) => void;
+  clearActiveOrganization: () => void;
+  setOrgsLoaded: (loaded: boolean) => void;
   // Branch actions
   setBranches: (branches: Branch[]) => void;
   setActiveBranch: (branchId: string) => void;
@@ -52,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
       organizationRoles: {},
       activeOrganizationId: null,
       activeOrganizationRole: null,
+      orgsLoaded: false,
       branches: [],
       activeBranchId: null,
 
@@ -72,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
           organizationRoles: {},
           activeOrganizationId: null,
           activeOrganizationRole: null,
+          orgsLoaded: false,
           branches: [],
           activeBranchId: null,
         }),
@@ -81,6 +86,11 @@ export const useAuthStore = create<AuthState>()(
 
       setActiveOrganization: (orgId, role) =>
         set({ activeOrganizationId: orgId, activeOrganizationRole: role, branches: [], activeBranchId: null }),
+
+      clearActiveOrganization: () =>
+        set({ activeOrganizationId: null, activeOrganizationRole: null, branches: [], activeBranchId: null }),
+
+      setOrgsLoaded: (orgsLoaded) => set({ orgsLoaded }),
 
       setBranches: (branches) => {
         const active = useAuthStore.getState().activeBranchId;
@@ -107,9 +117,8 @@ export const useAuthStore = create<AuthState>()(
         activeOrganizationRole: state.activeOrganizationRole,
         branches: state.branches,
         activeBranchId: state.activeBranchId,
+        // orgsLoaded NO se persiste — siempre arranca en false
       }),
-      // Al rehydratar: si hay 1 sola sucursal y activeBranchId es null, auto-seleccionarla.
-      // Esto evita pantallas vacías en el primer arranque después de instalar una actualización.
       onRehydrateStorage: () => (state) => {
         if (state && !state.activeBranchId && state.branches.length === 1) {
           state.activeBranchId = state.branches[0].id;

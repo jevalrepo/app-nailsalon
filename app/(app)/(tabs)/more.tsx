@@ -136,36 +136,6 @@ export default function MoreScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
       >
 
-        {/* ── Header con logo del salón ── */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{
-              width: 44, height: 44, borderRadius: 12,
-              backgroundColor: org?.logo_url ? 'transparent' : accent + '20',
-              borderWidth: org?.logo_url ? 0 : 1.5,
-              borderColor: accent + '40',
-              alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden',
-            }}>
-              {org?.logo_url ? (
-                <Image source={{ uri: org.logo_url }} style={{ width: 44, height: 44 }} resizeMode="cover" />
-              ) : (
-                <Ionicons name="sparkles" size={20} color={accent} />
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>
-                {org?.name ?? 'Mi salón'}
-              </Text>
-              {branch && (
-                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 1 }}>
-                  <Ionicons name="storefront-outline" size={11} color={colors.textSecondary} /> {branch.name}
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-
         {/* ── Perfil ── */}
         <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
           <View style={{

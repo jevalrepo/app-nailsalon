@@ -10,6 +10,15 @@ export interface TaskWithProfile extends Task {
   created_by_name: string | null;
 }
 
+async function resolveBranch(db: ReturnType<typeof getDb>, orgId: string, branchId: string | null): Promise<string | null> {
+  if (branchId) return branchId;
+  const row = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+    [orgId]
+  );
+  return row?.id ?? null;
+}
+
 export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all') {
   const { session } = useAuthStore();
   const { orgId } = useActiveOrg();
@@ -17,10 +26,12 @@ export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all
 
   return useQuery({
     queryKey: ['tasks', orgId, branchId, filter],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<Record<string, unknown>>(
         `SELECT
            t.id, t.title, t.is_completed, t.due_date, t.assigned_to, t.created_by, t.created_at,
@@ -31,7 +42,7 @@ export function useTasks(filter: 'all' | 'pending' | 'completed' | 'mine' = 'all
          LEFT JOIN profiles p2 ON p2.id = t.created_by
          WHERE t.organization_id = ? AND t.branch_id = ? AND t._deleted = 0
          ORDER BY t.is_completed ASC, t.due_date ASC NULLS LAST, t.created_at DESC`,
-        [orgId!, branchId!]
+        [orgId!, resolvedBranchId]
       );
 
       let result: TaskWithProfile[] = rows.map((r) => ({
@@ -61,10 +72,12 @@ export function useTaskById(id: string) {
 
   return useQuery({
     queryKey: ['tasks', orgId, branchId, id],
-    enabled: !!orgId && !!branchId && !!id,
+    enabled: !!orgId && !!id,
     placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) throw new Error('No hay sucursal activa');
       const r = await db.getFirstAsync<Record<string, unknown>>(
         `SELECT
            t.id, t.title, t.is_completed, t.due_date, t.assigned_to, t.created_by, t.created_at,
@@ -74,7 +87,7 @@ export function useTaskById(id: string) {
          LEFT JOIN profiles p1 ON p1.id = t.assigned_to
          LEFT JOIN profiles p2 ON p2.id = t.created_by
          WHERE t.id = ? AND t.organization_id = ? AND t.branch_id = ? AND t._deleted = 0`,
-        [id, orgId!, branchId!]
+        [id, orgId!, resolvedBranchId]
       );
       if (!r) throw new Error('Task not found');
       return {

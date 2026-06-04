@@ -262,6 +262,7 @@ export default function ClientDetailScreen() {
           scheduled_at: a.scheduled_at,
           status: a.status,
           payment_status: a.payment_status,
+          services: svcs,
         });
       }
       return result as ClientAppointment[];

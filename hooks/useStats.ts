@@ -52,16 +52,27 @@ export interface StatsSummary {
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+async function resolveBranch(db: ReturnType<typeof getDb>, orgId: string, branchId: string | null): Promise<string | null> {
+  if (branchId) return branchId;
+  const row = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM branches WHERE organization_id = ? AND _deleted = 0 AND is_active = 1 ORDER BY is_default DESC LIMIT 1',
+    [orgId]
+  );
+  return row?.id ?? null;
+}
+
 export function useMonthlyRevenue(months = 6) {
   const { orgId } = useActiveOrg();
   const { branchId } = useActiveBranch();
 
   return useQuery({
     queryKey: ['stats', 'monthly-revenue', orgId, branchId, months],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const now = new Date();
       const results: MonthlyRevenue[] = [];
 
@@ -77,7 +88,7 @@ export function useMonthlyRevenue(months = 6) {
              COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
            FROM transactions
            WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
-          [orgId!, branchId!, start, end]
+          [orgId!, resolvedBranchId, start, end]
         );
 
         const income = row?.income ?? 0;
@@ -97,10 +108,12 @@ export function useTopServices(year: number, month: number, limit = 5) {
 
   return useQuery({
     queryKey: ['stats', 'top-services', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<{
         service_id: string;
         name: string;
@@ -120,7 +133,7 @@ export function useTopServices(year: number, month: number, limit = 5) {
          GROUP BY s.id
          ORDER BY count DESC
          LIMIT ?`,
-        [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
+        [orgId!, resolvedBranchId, `${start}T00:00:00`, `${end}T23:59:59`, limit]
       );
       return rows as TopService[];
     },
@@ -134,10 +147,12 @@ export function useTopClients(year: number, month: number, limit = 5) {
 
   return useQuery({
     queryKey: ['stats', 'top-clients', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
+      if (!resolvedBranchId) return [];
       const rows = await db.getAllAsync<{
         client_id: string;
         name: string;
@@ -157,7 +172,7 @@ export function useTopClients(year: number, month: number, limit = 5) {
          GROUP BY c.id
          ORDER BY visits DESC
          LIMIT ?`,
-        [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`, limit]
+        [orgId!, resolvedBranchId, `${start}T00:00:00`, `${end}T23:59:59`, limit]
       );
       return rows as TopClient[];
     },
@@ -171,31 +186,36 @@ export function useStatsSummary(year: number, month: number) {
 
   return useQuery({
     queryKey: ['stats', 'summary', orgId, branchId, year, month],
-    enabled: !!orgId && !!branchId,
+    enabled: !!orgId,
     staleTime: 1000 * 60 * 5,
     queryFn: async () => {
       const db = getDb();
+      const resolvedBranchId = await resolveBranch(db, orgId!, branchId);
 
       const [clientCount, apptRows, txRow] = await Promise.all([
         db.getFirstAsync<{ count: number }>(
           `SELECT COUNT(*) as count FROM clients WHERE organization_id = ? AND _deleted = 0`,
           [orgId!]
         ),
-        db.getAllAsync<{ status: string }>(
-          `SELECT status FROM appointments
-           WHERE organization_id = ? AND branch_id = ?
-             AND scheduled_at >= ? AND scheduled_at <= ?
-             AND _deleted = 0`,
-          [orgId!, branchId!, `${start}T00:00:00`, `${end}T23:59:59`]
-        ),
-        db.getFirstAsync<{ income: number; expenses: number }>(
-          `SELECT
-             COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
-             COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
-           FROM transactions
-           WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
-          [orgId!, branchId!, start, end]
-        ),
+        resolvedBranchId
+          ? db.getAllAsync<{ status: string }>(
+              `SELECT status FROM appointments
+               WHERE organization_id = ? AND branch_id = ?
+                 AND scheduled_at >= ? AND scheduled_at <= ?
+                 AND _deleted = 0`,
+              [orgId!, resolvedBranchId, `${start}T00:00:00`, `${end}T23:59:59`]
+            )
+          : Promise.resolve([]),
+        resolvedBranchId
+          ? db.getFirstAsync<{ income: number; expenses: number }>(
+              `SELECT
+                 COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
+                 COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
+               FROM transactions
+               WHERE organization_id = ? AND branch_id = ? AND date >= ? AND date <= ? AND _deleted = 0`,
+              [orgId!, resolvedBranchId, start, end]
+            )
+          : Promise.resolve(null),
       ]);
 
       const total_appointments = apptRows.length;

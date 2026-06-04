@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTodayAppointments, useTodayIncome } from '@/hooks/useHomeData';
 import type { TodayAppointment } from '@/hooks/useHomeData';
 import { SyncStatusBadge } from '@/components/ui/SyncStatusBadge';
+import { useActiveOrg } from '@/hooks/useActiveOrg';
+import { useActiveBranch } from '@/hooks/useActiveBranch';
+import { useCachedLogoUri } from '@/hooks/useCachedLogoUri';
 
 const BUSINESS_CONFIG_KEY = 'coraline-business-config';
 const DEFAULT_BUSINESS_NAME = 'Coraline Nails';
@@ -93,6 +96,10 @@ function AppointmentCard({ item, colors, accent }: { item: TodayAppointment; col
 
 export default function HomeScreen() {
   const { colors, accent } = useTheme();
+  const { org } = useActiveOrg();
+  const { branch, isMulti: isMultiBranch } = useActiveBranch();
+  const cachedLogoUri = useCachedLogoUri(org?.id, org?.logo_url);
+  const logoUri = cachedLogoUri ?? org?.logo_url ?? null;
   const [businessName, setBusinessName] = useState(DEFAULT_BUSINESS_NAME);
 
   const { data: appointments = [], isLoading: loadingAppts } = useTodayAppointments();
@@ -129,10 +136,34 @@ export default function HomeScreen() {
           <Text style={{ fontSize: 13, color: colors.textTertiary, textTransform: 'capitalize' }}>
             {todayLabel}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-            <Text style={{ fontSize: 26, fontWeight: '700', color: colors.text }}>
-              {businessName}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{
+                width: 44, height: 44, borderRadius: 12,
+                backgroundColor: logoUri ? 'transparent' : accent + '20',
+                borderWidth: logoUri ? 0 : 1.5,
+                borderColor: accent + '40',
+                alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                {logoUri ? (
+                  <Image source={{ uri: logoUri }} style={{ width: 44, height: 44 }} resizeMode="cover" />
+                ) : (
+                  <Ionicons name="sparkles" size={20} color={accent} />
+                )}
+              </View>
+              <View>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text }}>
+                  {org?.name ?? businessName}
+                </Text>
+                {branch && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <Ionicons name="storefront-outline" size={11} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 12, color: colors.textSecondary }}>{branch.name}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
             <SyncStatusBadge />
           </View>
         </View>
